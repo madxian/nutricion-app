@@ -4,17 +4,13 @@
 import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// App Hosting provides a service account automatically.
-const serviceAccount = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  ? JSON.parse(Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'base64').toString('utf8'))
-  : undefined;
-
+// In the App Hosting environment, the SDK will automatically discover the
+// service account credentials. In a local environment, you may need to set
+// the GOOGLE_APPLICATION_CREDENTIALS environment variable.
 if (!getApps().length) {
-  initializeApp({
-    credential: serviceAccount ? cert(serviceAccount) : undefined,
-  });
+  initializeApp();
 }
 
-const adminDb = getFirestore(getApp());
+const adminDb = getFirestore();
 
 export { adminDb };
