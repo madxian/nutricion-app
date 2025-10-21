@@ -45,10 +45,10 @@ export default function AuthForm() {
   });
 
   const signupSchema = z.object({
-    registrationCode: z.string().min(1, t('auth.registration_code_required')),
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
+    registrationCode: z.string().min(1, t('auth.registration_code_required')),
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('auth.passwords_no_match'),
     path: ['confirmPassword'],
@@ -62,10 +62,10 @@ export default function AuthForm() {
   const signupForm = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: { 
-      registrationCode: registrationCode || '', 
       email: '', 
       password: '', 
-      confirmPassword: '' 
+      confirmPassword: '',
+      registrationCode: registrationCode || '', 
     },
   });
 
@@ -260,6 +260,7 @@ export default function AuthForm() {
                   {t('auth.signup_button')}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
+                  {t('auth.contact_for_access')}{' '}
                   <a href="/checkout" className="underline hover:text-primary">
                     {t('auth.get_code_link')}
                   </a>
