@@ -211,7 +211,7 @@ export default function AuthForm() {
                   {t('auth.signup_button')}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
-                  Para obtener acceso, contáctanos.
+                  {t('auth.contact_for_access')}
                 </p>
               </form>
             </Form>
