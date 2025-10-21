@@ -8,7 +8,7 @@ admin.initializeApp();
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
  */
-export const wompiWebhook = functions.https.onRequest(async (request, response) => {
+export const wompiWebhook = functions.https.onRequest(async (request: functions.https.Request, response: functions.Response) => {
     // 1. Get the signature from the request headers.
     const signatureHeader = request.headers["x-wompi-signature"];
     if (!signatureHeader || typeof signatureHeader !== "string") {
@@ -26,7 +26,11 @@ export const wompiWebhook = functions.https.onRequest(async (request, response) 
     }
 
     try {
+        // IMPORTANT: Wompi's documentation might be interpreted in different ways.
+        // This implementation assumes the signature is calculated over the raw request body.
+        // If this fails, we might need to stringify the JSON body instead.
         const bodyString = JSON.stringify(request.body);
+        
         const signatureParts = signatureHeader.split(",").reduce((acc, part) => {
             const [key, value] = part.split("=");
             if (key && value) {
