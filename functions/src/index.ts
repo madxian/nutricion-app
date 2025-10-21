@@ -21,6 +21,11 @@ export const wompiWebhook = functions.https.onRequest(async (request, response) 
 
     functions.logger.log(`Processing event type: ${eventType} for transaction ID: ${event.transaction.id}`);
 
+    // You can access your secrets like this:
+    // const wompiPublicKey = process.env.WOMPI_PUBLIC_KEY;
+    // functions.logger.info("Using Wompi public key:", wompiPublicKey);
+
+
     // Respond to Wompi to acknowledge receipt of the event.
     // Wompi requires a 200 OK response to know the webhook is working.
     response.status(200).send({ received: true });
