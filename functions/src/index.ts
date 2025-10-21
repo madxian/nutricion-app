@@ -1,8 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
-import { onRequest, Request } from "firebase-functions/v2/https";
-import { Response } from "express";
 
 admin.initializeApp();
 
@@ -10,10 +8,10 @@ admin.initializeApp();
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
  */
-export const wompiWebhook = functions.https.onRequest(async (request: Request, response: Response) => {
+export const wompiWebhook = functions.https.onRequest(async (request, response) => {
     // 1. Get the signature from the request headers.
-    const signatureHeader = request.headers["x-wompi-signature"] as string;
-    if (!signatureHeader) {
+    const signatureHeader = request.headers["x-wompi-signature"];
+    if (!signatureHeader || typeof signatureHeader !== "string") {
         functions.logger.warn("Request missing X-Wompi-Signature header.");
         response.status(400).send("Missing signature.");
         return;
@@ -28,30 +26,28 @@ export const wompiWebhook = functions.https.onRequest(async (request: Request, r
     }
 
     try {
-        // 3. Construct the string to sign.
-        const requestBody = JSON.stringify(request.body);
-        const timestamp = new Date().getTime(); // Note: Wompi's signature might use a timestamp they send.
-                                                 // For this example, we assume a generic HMAC verification.
-                                                 // Wompi's documentation should be checked for the exact format.
-                                                 // A common format is: `request.body.data.transaction.id + request.body.data.transaction.status + timestamp + wompiEventSecret`
-                                                 // For this example, let's assume a simpler concatenation.
-        
-        // This is a common pattern, but Wompi's specific string-to-sign might differ.
-        // Let's assume for now it's: `body + timestamp`
-        // Wompi documentation says: concatenation of the request body (as a string), followed by the timestamp, followed by your secret.
-        // A more robust implementation would parse the signature header to get the exact timestamp used by Wompi.
-        // For now, this logic provides a strong security base.
+        const bodyString = JSON.stringify(request.body);
+        const signatureParts = signatureHeader.split(",").reduce((acc, part) => {
+            const [key, value] = part.split("=");
+            if (key && value) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {} as Record<string, string>);
 
-        const stringToSign = `${requestBody}${timestamp}`;
+        const timestamp = signatureParts.t;
+        const receivedSignature = signatureParts.v1;
 
-        // 4. Create the HMAC-SHA256 signature.
+        if (!timestamp || !receivedSignature) {
+            response.status(400).send("Invalid signature header format.");
+            return;
+        }
+
+        const stringToSign = `${bodyString}${timestamp}${wompiEventSecret}`;
+
         const hmac = crypto.createHmac("sha256", wompiEventSecret);
         hmac.update(stringToSign);
         const computedSignature = hmac.digest("hex");
-
-        // 5. Compare signatures (use a timing-safe comparison).
-        // The signature from Wompi will be in the format `v1=THE_SIGNATURE,t=THE_TIMESTAMP`. We need to extract the signature part.
-        const receivedSignature = signatureHeader.split(",")[0].split("=")[1];
 
         if (!crypto.timingSafeEqual(Buffer.from(computedSignature, "hex"), Buffer.from(receivedSignature, "hex"))) {
             functions.logger.warn("Invalid signature.", { received: receivedSignature, computed: "hidden" });
@@ -59,8 +55,7 @@ export const wompiWebhook = functions.https.onRequest(async (request: Request, r
             return;
         }
 
-    } catch (error)
-    {
+    } catch (error) {
         functions.logger.error("Error verifying signature:", error);
         response.status(500).send("Error during signature verification.");
         return;
