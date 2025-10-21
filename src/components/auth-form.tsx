@@ -203,19 +203,6 @@ export default function AuthForm() {
           <TabsContent value="signup">
             <Form {...signupForm}>
               <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6 pt-4">
-                <FormField
-                  control={signupForm.control}
-                  name="registrationCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('auth.registration_code_label')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('auth.registration_code_placeholder')} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                  <FormField
                   control={signupForm.control}
                   name="email"
@@ -250,6 +237,19 @@ export default function AuthForm() {
                       <FormLabel>{t('auth.confirm_password_label')}</FormLabel>
                       <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={signupForm.control}
+                  name="registrationCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('auth.registration_code_label')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t('auth.registration_code_placeholder')} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
