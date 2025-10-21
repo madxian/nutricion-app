@@ -6,7 +6,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } f
 import { firebaseConfig } from '@/firebase/config';
 import type { UserData } from './types';
 
-// Initialize Firebase
+// Initialize Firebase for the CLIENT
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);

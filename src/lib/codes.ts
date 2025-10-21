@@ -1,9 +1,9 @@
 'use server';
 
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 import { collection, query, where, getDocs, limit, updateDoc, doc, writeBatch } from 'firebase/firestore';
 
-// THIS IMPLEMENTATION NOW USES FIRESTORE.
+// THIS IMPLEMENTATION NOW USES THE ADMIN FIRESTORE INSTANCE.
 
 interface Code {
     id?: string; // Document ID in Firestore
@@ -13,7 +13,7 @@ interface Code {
     assignedTo: string | null; // e.g., user email or username
 }
 
-const codesCollection = collection(db, 'registrationCodes');
+const codesCollection = collection(adminDb, 'registrationCodes');
 
 /**
  * Assigns the first available code to a transaction.
@@ -34,7 +34,7 @@ export async function assignCodeToTransaction(transactionId: string, userEmail: 
         const codeToAssign = codeDoc.data() as Code;
         
         // Assign the code to the transaction
-        await updateDoc(doc(db, 'registrationCodes', codeDoc.id), {
+        await updateDoc(doc(adminDb, 'registrationCodes', codeDoc.id), {
             transactionId: transactionId,
             assignedTo: userEmail, // Associate with the buyer's email for reference
         });
@@ -72,7 +72,7 @@ export async function validateAndUseCode(code: string, username: string): Promis
         }
 
         // Mark the code as used and assign to the new username
-        await updateDoc(doc(db, 'registrationCodes', codeDoc.id), {
+        await updateDoc(doc(adminDb, 'registrationCodes', codeDoc.id), {
             used: true,
             assignedTo: username, // Overwrite email with final username
         });
@@ -91,7 +91,7 @@ export async function validateAndUseCode(code: string, username: string): Promis
  * Not part of the main application flow.
  */
 export async function addCodesBatch(codes: string[]) {
-    const batch = writeBatch(db);
+    const batch = writeBatch(adminDb);
     
     codes.forEach(codeValue => {
         const newCodeRef = doc(codesCollection);
