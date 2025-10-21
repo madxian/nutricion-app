@@ -17,13 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Logo from './logo';
 import { useLanguage } from '@/context/language-context';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/context/user-context';
-import { useAuth } from '@/firebase/provider';
+import { useAuth, useFirebase } from '@/firebase/provider';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 
 export default function AuthForm() {
@@ -31,8 +32,12 @@ export default function AuthForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = useAuth();
+  const { firestore } = useFirebase();
   const { saveUserData } = useUser();
+  
+  const registrationCode = searchParams.get('code');
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
@@ -40,6 +45,7 @@ export default function AuthForm() {
   });
 
   const signupSchema = z.object({
+    registrationCode: z.string().min(1, t('auth.registration_code_required')),
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
@@ -55,8 +61,21 @@ export default function AuthForm() {
 
   const signupForm = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { email: '', password: '', confirmPassword: '' },
+    defaultValues: { 
+      registrationCode: registrationCode || '', 
+      email: '', 
+      password: '', 
+      confirmPassword: '' 
+    },
   });
+
+  // Effect to update form value if URL code changes
+  useEffect(() => {
+    if (registrationCode) {
+      signupForm.setValue('registrationCode', registrationCode);
+    }
+  }, [registrationCode, signupForm]);
+
 
   const onLogin = async (values: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
@@ -81,15 +100,32 @@ export default function AuthForm() {
   const onSignup = async (values: z.infer<typeof signupSchema>) => {
     setIsLoading(true);
     try {
-      // Step 1: Create user in Firebase Auth
+      // Step 1: Verify the registration code in Firestore
+      const codeRef = doc(firestore, 'payment_codes', values.registrationCode);
+      const codeSnap = await getDoc(codeRef);
+
+      if (!codeSnap.exists() || codeSnap.data()?.status !== 'APPROVED' || codeSnap.data()?.used) {
+        toast({
+            variant: 'destructive',
+            title: 'Código Inválido',
+            description: 'El código de registro no es válido, ya fue utilizado o ha expirado.',
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Step 2: Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Step 2: Create user document in Firestore via context
+      // Step 3: Create user document in Firestore via context
       if (user) {
         await saveUserData(user.uid, {
             email: values.email,
         });
+        
+        // Step 4: Mark the registration code as used
+        await setDoc(codeRef, { used: true, usedBy: user.uid, usedAt: new Date().toISOString() }, { merge: true });
       }
 
       toast({
@@ -167,6 +203,19 @@ export default function AuthForm() {
           <TabsContent value="signup">
             <Form {...signupForm}>
               <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6 pt-4">
+                <FormField
+                  control={signupForm.control}
+                  name="registrationCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('auth.registration_code_label')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t('auth.registration_code_placeholder')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                  <FormField
                   control={signupForm.control}
                   name="email"
@@ -211,7 +260,9 @@ export default function AuthForm() {
                   {t('auth.signup_button')}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
-                  {t('auth.contact_for_access')}
+                  <a href="/checkout" className="underline hover:text-primary">
+                    {t('auth.get_code_link')}
+                  </a>
                 </p>
               </form>
             </Form>
