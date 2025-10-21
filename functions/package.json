@@ -11,21 +11,21 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "main": "lib/index.js",
   "dependencies": {
-    "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.0.0"
-  },
-  "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
     "eslint": "^8.9.0",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-import": "^2.25.4",
-    "@types/node": "^18.19.42",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.1",
     "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10"
   },
   "private": true
 }

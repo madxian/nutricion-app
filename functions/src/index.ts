@@ -8,7 +8,7 @@ admin.initializeApp();
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
  */
-export const wompiWebhook = functions.https.onRequest(async (request: functions.https.Request, response: functions.Response) => {
+export const wompiWebhook = functions.https.onRequest(async (request, response) => {
     // 1. Get the signature from the request headers.
     const signatureHeader = request.headers["x-wompi-signature"];
     if (!signatureHeader || typeof signatureHeader !== "string") {
@@ -18,23 +18,20 @@ export const wompiWebhook = functions.https.onRequest(async (request: functions.
     }
 
     // 2. Get your Webhook Event Secret from environment variables.
-    const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
+    const wompiEventSecret = process.env.WOMPI_EVENTSECRET;
     if (!wompiEventSecret) {
-        functions.logger.error("WOMPI_EVENT_SECRET is not set in environment variables.");
+        functions.logger.error("WOMPI_EVENTSECRET is not set in environment variables.");
         response.status(500).send("Server configuration error.");
         return;
     }
 
     try {
-        // IMPORTANT: Wompi's documentation might be interpreted in different ways.
-        // This implementation assumes the signature is calculated over the raw request body.
-        // If this fails, we might need to stringify the JSON body instead.
         const bodyString = JSON.stringify(request.body);
         
         const signatureParts = signatureHeader.split(",").reduce((acc, part) => {
             const [key, value] = part.split("=");
             if (key && value) {
-                acc[key] = value;
+                acc[key.trim()] = value.trim();
             }
             return acc;
         }, {} as Record<string, string>);
