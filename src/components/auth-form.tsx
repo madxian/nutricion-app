@@ -44,7 +44,6 @@ export default function AuthForm() {
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
-    registrationCode: z.string().min(1, "El código de registro es requerido."),
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('auth.passwords_no_match'),
     path: ['confirmPassword'],
@@ -57,7 +56,7 @@ export default function AuthForm() {
 
   const signupForm = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { username: '', email: '', password: '', confirmPassword: '', registrationCode: '' },
+    defaultValues: { username: '', email: '', password: '', confirmPassword: '' },
   });
 
   const onLogin = async (values: z.infer<typeof loginSchema>) => {
@@ -83,23 +82,11 @@ export default function AuthForm() {
   const onSignup = async (values: z.infer<typeof signupSchema>) => {
     setIsLoading(true);
     try {
-      // Step 1: Validate registration code
-      const codeResponse = await fetch('/api/validate-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: values.registrationCode, username: values.username }),
-      });
-      const codeResult = await codeResponse.json();
-
-      if (!codeResponse.ok) {
-        throw new Error(codeResult.error || 'Error al validar el código.');
-      }
-      
-      // Step 2: Create user in Firebase Auth
+      // Step 1: Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Step 3: Create user document in Firestore via context
+      // Step 2: Create user document in Firestore via context
       if (user) {
         await saveUserData(user.uid, {
             name: values.username,
@@ -234,28 +221,12 @@ export default function AuthForm() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={signupForm.control}
-                  name="registrationCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('auth.registration_code_label')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="ABC-123-XYZ" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <Button type="submit" className="w-full" variant="default" disabled={isLoading}>
                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('auth.signup_button')}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
-                  ¿No tienes un código?{' '}
-                  <a href="https://checkout.nequi.wompi.co/l/ko8i5q" className="underline hover:text-primary">
-                    Obtén uno aquí
-                  </a>
+                  Para obtener acceso, contáctanos.
                 </p>
               </form>
             </Form>
