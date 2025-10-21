@@ -1,6 +1,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
+import { onRequest, Request } from "firebase-functions/v2/https";
+import { Response } from "express";
 
 admin.initializeApp();
 
@@ -8,7 +10,7 @@ admin.initializeApp();
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
  */
-export const wompiWebhook = functions.https.onRequest(async (request, response) => {
+export const wompiWebhook = functions.https.onRequest(async (request: Request, response: Response) => {
     // 1. Get the signature from the request headers.
     const signatureHeader = request.headers["x-wompi-signature"] as string;
     if (!signatureHeader) {
@@ -57,7 +59,8 @@ export const wompiWebhook = functions.https.onRequest(async (request, response) 
             return;
         }
 
-    } catch (error) {
+    } catch (error)
+    {
         functions.logger.error("Error verifying signature:", error);
         response.status(500).send("Error during signature verification.");
         return;
