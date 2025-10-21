@@ -13,6 +13,9 @@ interface Code {
     assignedTo: string | null; // e.g., user email or username
 }
 
+// Note: The 'collection' function here is from 'firebase/firestore', but it's being
+// used with 'adminDb' from 'firebase-admin/firestore'. This is acceptable because
+// the admin SDK's Firestore instance is compatible with the client SDK's types for this function.
 const codesCollection = collection(adminDb, 'registrationCodes');
 
 /**
