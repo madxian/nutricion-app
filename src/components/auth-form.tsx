@@ -40,7 +40,6 @@ export default function AuthForm() {
   });
 
   const signupSchema = z.object({
-    username: z.string().min(3, t('auth.username_min_length')),
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
@@ -56,7 +55,7 @@ export default function AuthForm() {
 
   const signupForm = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { username: '', email: '', password: '', confirmPassword: '' },
+    defaultValues: { email: '', password: '', confirmPassword: '' },
   });
 
   const onLogin = async (values: z.infer<typeof loginSchema>) => {
@@ -89,7 +88,6 @@ export default function AuthForm() {
       // Step 2: Create user document in Firestore via context
       if (user) {
         await saveUserData(user.uid, {
-            name: values.username,
             email: values.email,
         });
       }
@@ -169,19 +167,6 @@ export default function AuthForm() {
           <TabsContent value="signup">
             <Form {...signupForm}>
               <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6 pt-4">
-                <FormField
-                  control={signupForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('auth.username_label')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('auth.username_placeholder_signup')} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                  <FormField
                   control={signupForm.control}
                   name="email"
