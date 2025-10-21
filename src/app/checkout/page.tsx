@@ -52,7 +52,7 @@ export default function CheckoutPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-4xl font-bold mb-2">$40,000 COP</p>
+            <p className="text-4xl font-bold mb-2">$50,000 COP</p>
             <p className="text-muted-foreground">Pago único</p>
           </CardContent>
           <CardFooter>
