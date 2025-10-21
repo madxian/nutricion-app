@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Manages access to user profile documents. Only the authenticated user can read or write their own profile.
+     * @path /users/{userId}
+     * @allow (create, update, get, delete) - User with UID 'user123' can create, update, get, or delete the document at /users/user123 if authenticated.
+     * @deny (create, update, get, delete) - User with UID 'user456' cannot create, update, get, or delete the document at /users/user123.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Allow the user to read their own profile
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      // Allow the user to create their own profile, validating the ID
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // Allow the user to update their own profile
+      allow update: if isOwner(userId);
+
+      // Allow the user to delete their own profile
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Manages access to meal plan documents within a user's profile. Only the authenticated user who owns the parent profile can read or write their own meal plans.
+     * @path /users/{userId}/meal_plans/{mealPlanId}
+     * @allow (create, update, get, delete) - User with UID 'user123' can create, update, get, or delete the document at /users/user123/meal_plans/mealPlan1 if authenticated.
+     * @deny (create, update, get, delete) - User with UID 'user456' cannot create, update, get, or delete the document at /users/user123/meal_plans/mealPlan1.
+     * @principle Enforces document ownership for all operations within the user's data tree.
+     */
+    match /users/{userId}/meal_plans/{mealPlanId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+      allow get: if isOwner(userId);
+      allow list: if false; // Listing meal plans should not be generally allowed.
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Manages access to recipe documents.  Recipes are publicly readable, but creating, updating, and deleting require validation and ownership.
+     * @path /recipes/{recipeId}
+     * @allow get, list: Any user can read or list all recipes.
+     * @deny create, update, delete: Only the owner of the recipe can modify it.
+     * @principle Public read access with owner-only writes, but only if the schema includes ownerId.
+     */
+    match /recipes/{recipeId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(ownerId) {
+          return isSignedIn() && request.auth.uid == ownerId;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+     /**
+      * @description Manages access to weight goal documents. Weight goals are publicly readable.
+      * @path /weight_goals/{weightGoalId}
+      * @allow get, list: Any user can read or list all weight goals.
+      * @deny create, update, delete:  No one can create, update, or delete weight goals.
+      * @principle Public read access to weight goals.
+      */
+    match /weight_goals/{weightGoalId} {
+        allow get, list: if true;
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+    }
+  }
+}

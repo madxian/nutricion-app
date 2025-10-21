@@ -1,0 +1,267 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile with personal information and preferences.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "name": {
+          "type": "string",
+          "description": "User's full name."
+        },
+        "age": {
+          "type": "number",
+          "description": "User's age in years."
+        },
+        "height": {
+          "type": "number",
+          "description": "User's height in centimeters."
+        },
+        "weight": {
+          "type": "number",
+          "description": "User's current weight in kilograms."
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Reference to WeightGoal. (Relationship: WeightGoal 1:1 UserProfile)"
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address for login.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "age",
+        "height",
+        "weight",
+        "goalId",
+        "email"
+      ]
+    },
+    "WeightGoal": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WeightGoal",
+      "type": "object",
+      "description": "Represents a user's weight goal (gain, lose, maintain).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the weight goal."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the goal (e.g., 'Gain Weight', 'Lose Weight', 'Maintain Weight')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the weight goal."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "MealPlan": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MealPlan",
+      "type": "object",
+      "description": "Represents a meal plan for a specific user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the meal plan."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N MealPlan)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date for which the meal plan is generated.",
+          "format": "date-time"
+        },
+        "breakfastRecipes": {
+          "type": "array",
+          "description": "References to Breakfast recipes. (Relationship: Recipe 1:N MealPlan)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lunchRecipes": {
+          "type": "array",
+          "description": "References to Lunch recipes. (Relationship: Recipe 1:N MealPlan)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snackRecipes": {
+          "type": "array",
+          "description": "References to Snack recipes. (Relationship: Recipe 1:N MealPlan)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dinnerRecipes": {
+          "type": "array",
+          "description": "References to Dinner recipes. (Relationship: Recipe 1:N MealPlan)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "date",
+        "breakfastRecipes",
+        "lunchRecipes",
+        "snackRecipes",
+        "dinnerRecipes"
+      ]
+    },
+    "Recipe": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Recipe",
+      "type": "object",
+      "description": "Represents a recipe with its ingredients and instructions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recipe."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the recipe."
+        },
+        "ingredients": {
+          "type": "string",
+          "description": "List of ingredients required for the recipe."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions for preparing the recipe."
+        },
+        "calories": {
+          "type": "number",
+          "description": "Total calories in the recipe."
+        },
+        "protein": {
+          "type": "number",
+          "description": "Amount of protein in the recipe (grams)."
+        },
+        "carbohydrates": {
+          "type": "number",
+          "description": "Amount of carbohydrates in the recipe (grams)."
+        },
+        "fat": {
+          "type": "number",
+          "description": "Amount of fat in the recipe (grams)."
+        },
+        "recipeType": {
+          "type": "string",
+          "description": "The type of recipe: Breakfast, Lunch, Snack, or Dinner."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "ingredients",
+        "instructions",
+        "calories",
+        "protein",
+        "carbohydrates",
+        "fat",
+        "recipeType"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile data. The 'userId' parameter is the Firebase Auth UID, establishing path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/meal_plans/{mealPlanId}",
+        "definition": {
+          "entityName": "MealPlan",
+          "schema": {
+            "$ref": "#/backend/entities/MealPlan"
+          },
+          "description": "Stores meal plans for a specific user. The 'userId' parameter is the Firebase Auth UID, inherited from the parent document. The 'mealPlanId' is the unique ID of the meal plan.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            },
+            {
+              "name": "mealPlanId",
+              "description": "The unique ID of the meal plan."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/recipes/{recipeId}",
+        "definition": {
+          "entityName": "Recipe",
+          "schema": {
+            "$ref": "#/backend/entities/Recipe"
+          },
+          "description": "Stores recipe data. The 'recipeId' parameter is the unique ID of the recipe.",
+          "params": [
+            {
+              "name": "recipeId",
+              "description": "The unique ID of the recipe."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/weight_goals/{weightGoalId}",
+        "definition": {
+          "entityName": "WeightGoal",
+          "schema": {
+            "$ref": "#/backend/entities/WeightGoal"
+          },
+          "description": "Stores weight goal data. The 'weightGoalId' parameter is the unique ID of the weight goal.",
+          "params": [
+            {
+              "name": "weightGoalId",
+              "description": "The unique ID of the weight goal."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to store user profiles, weight goals, meal plans, and recipes, ensuring data integrity and security. User profiles and meal plans are stored under the `/users/{userId}` path, providing path-based ownership for simplified security rules. Recipes are stored in a top-level `/recipes` collection, as they are likely to be shared across users. Weight goals are stored in a top-level `/weight_goals` collection, as they represent static data.\n\nAuthorization Independence:\n- UserProfile and MealPlan data is nested under `/users/{userId}`, establishing clear ownership and eliminating the need for `get()` calls to determine ownership. Security rules can directly use `request.auth.uid == userId`.\n- No denormalization is needed because the structure enforces path-based ownership for user-specific data.\n\nQAPs Support:\n- Segregation: User profiles and meal plans are stored in separate collections under the `/users/{userId}` path, ensuring that security rules are applied consistently to all documents within each collection.\n- The `/recipes` collection is assumed to have general read access, or specific rules can be added to control access based on recipe attributes (e.g., public vs. private recipes)."
+  }
+}
