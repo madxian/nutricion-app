@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -54,25 +55,33 @@ export default function AuthForm() {
     password: z.string().min(1, t('auth.password_required')),
   });
 
-  const signupSchema = z.object({
+  // We need to pass `t` to the function to get the latest translations
+  const getSignupSchema = (t: (key: string) => string) => z.object({
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
     registrationCode: z.string().min(1, t('auth.registration_code_required')),
-    acceptTerms: z.boolean().refine(val => val === true, { message: 'Debes aceptar los términos.' }),
-    acceptPrivacy: z.boolean().refine(val => val === true, { message: 'Debes aceptar la política de privacidad.' }),
-    isAdult: z.boolean().refine(val => val === true, { message: 'Debes ser mayor de 18 años.' }),
+    acceptTerms: z.boolean().refine(val => val === true, { message: t('auth.accept_terms_error') }),
+    acceptPrivacy: z.boolean().refine(val => val === true, { message: t('auth.accept_privacy_error') }),
+    isAdult: z.boolean().refine(val => val === true, { message: t('auth.is_adult_error') }),
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('auth.passwords_no_match'),
     path: ['confirmPassword'],
   });
+
+  const [signupSchema, setSignupSchema] = useState(() => getSignupSchema(t));
+
+  useEffect(() => {
+    setSignupSchema(getSignupSchema(t));
+  }, [t]);
+
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
 
-  const signupForm = useForm<z.infer<typeof signupSchema>>({
+  const signupForm = useForm<z.infer<ReturnType<typeof getSignupSchema>>>({
     resolver: zodResolver(signupSchema),
     defaultValues: { 
       email: '', 
@@ -113,7 +122,7 @@ export default function AuthForm() {
     }
   };
 
-  const onSignup = async (values: z.infer<typeof signupSchema>) => {
+  const onSignup = async (values: z.infer<ReturnType<typeof getSignupSchema>>) => {
     setIsLoading(true);
     try {
       // Step 1: Verify the registration code in Firestore
@@ -167,7 +176,7 @@ export default function AuthForm() {
             <Logo />
         </div>
         <CardDescription>
-          Tu guía de nutrición con el sazón Colombiano
+          {t('auth.subtitle')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -282,14 +291,14 @@ export default function AuthForm() {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>
-                          He leído y acepto los{' '}
+                          {t('auth.accept_terms_prefix')}{' '}
                           <Dialog>
                             <DialogTrigger asChild>
-                              <span className="underline hover:text-primary cursor-pointer">Términos y Condiciones</span>
+                              <span className="underline hover:text-primary cursor-pointer">{t('auth.terms_title')}</span>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl">
                               <DialogHeader>
-                                <DialogTitle className="text-2xl">Términos y Condiciones</DialogTitle>
+                                <DialogTitle className="text-2xl">{t('auth.terms_title')}</DialogTitle>
                                 <DialogDescription>
                                   Fecha de Entrada en Vigor: 20 de septiembre de 2025
                                 </DialogDescription>
@@ -335,14 +344,14 @@ export default function AuthForm() {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>
-                          He leído y acepto la{' '}
+                          {t('auth.accept_privacy_prefix')}{' '}
                            <Dialog>
                             <DialogTrigger asChild>
-                               <span className="underline hover:text-primary cursor-pointer">Política de Privacidad</span>
+                               <span className="underline hover:text-primary cursor-pointer">{t('auth.privacy_title')}</span>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl">
                               <DialogHeader>
-                                <DialogTitle className="text-2xl">Política de Privacidad</DialogTitle>
+                                <DialogTitle className="text-2xl">{t('auth.privacy_title')}</DialogTitle>
                                 <DialogDescription>
                                   Fecha de Entrada en Vigor: 20 de septiembre de 2025
                                 </DialogDescription>
@@ -392,7 +401,7 @@ export default function AuthForm() {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>
-                          Confirmo que soy mayor de 18 años.
+                          {t('auth.is_adult_label')}
                         </FormLabel>
                         <FormMessage />
                       </div>

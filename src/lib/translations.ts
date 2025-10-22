@@ -1,3 +1,4 @@
+
 const translations = {
   es: {
     auth: {
@@ -20,6 +21,16 @@ const translations = {
       registration_code_label: 'Código de Registro',
       registration_code_placeholder: 'Ingresa tu código de pago',
       registration_code_required: 'El código de registro es requerido.',
+      accept_terms_prefix: 'He leído y acepto los',
+      accept_terms_link: 'Términos y Condiciones',
+      accept_terms_error: 'Debes aceptar los términos.',
+      accept_privacy_prefix: 'He leído y acepto la',
+      accept_privacy_link: 'Política de Privacidad',
+      accept_privacy_error: 'Debes aceptar la política de privacidad.',
+      is_adult_label: 'Confirmo que soy mayor de 18 años.',
+      is_adult_error: 'Debes ser mayor de 18 años.',
+      terms_title: 'Términos y Condiciones',
+      privacy_title: 'Política de Privacidad',
     },
     details: {
       title: 'Cuéntanos sobre ti',
@@ -109,6 +120,16 @@ const translations = {
       registration_code_label: 'Registration Code',
       registration_code_placeholder: 'Enter your payment code',
       registration_code_required: 'Registration code is required.',
+      accept_terms_prefix: 'I have read and accept the',
+      accept_terms_link: 'Terms and Conditions',
+      accept_terms_error: 'You must accept the terms.',
+      accept_privacy_prefix: 'I have read and accept the',
+      accept_privacy_link: 'Privacy Policy',
+      accept_privacy_error: 'You must accept the privacy policy.',
+      is_adult_label: 'I confirm I am over 18 years old.',
+      is_adult_error: 'You must be over 18 years old.',
+      terms_title: 'Terms and Conditions',
+      privacy_title: 'Privacy Policy',
     },
     details: {
       title: 'Tell us about yourself',
