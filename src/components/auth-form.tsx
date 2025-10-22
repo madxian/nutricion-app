@@ -27,7 +27,15 @@ import { useAuth, useFirebase } from '@/firebase/provider';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function AuthForm() {
   const { t, setLanguage, language } = useLanguage();
@@ -167,7 +175,7 @@ export default function AuthForm() {
           <Button variant={language === 'es' ? 'default' : 'outline'} size="sm" onClick={() => setLanguage('es')}>Español</Button>
           <Button variant={language === 'en' ? 'default' : 'outline'} size="sm" onClick={() => setLanguage('en')}>English</Button>
         </div>
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs defaultValue={registrationCode ? 'signup' : 'login'} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">{t('auth.login_tab')}</TabsTrigger>
             <TabsTrigger value="signup">{t('auth.signup_tab')}</TabsTrigger>
@@ -210,7 +218,7 @@ export default function AuthForm() {
           </TabsContent>
           <TabsContent value="signup">
             <Form {...signupForm}>
-              <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6 pt-4">
+              <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4 pt-4">
                  <FormField
                   control={signupForm.control}
                   name="email"
@@ -275,9 +283,42 @@ export default function AuthForm() {
                       <div className="space-y-1 leading-none">
                         <FormLabel>
                           He leído y acepto los{' '}
-                          <Link href="/terms" target="_blank" className="underline hover:text-primary">
-                            Términos y Condiciones
-                          </Link>.
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <span className="underline hover:text-primary cursor-pointer">Términos y Condiciones</span>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle className="text-2xl">Términos y Condiciones</DialogTitle>
+                                <DialogDescription>
+                                  Fecha de Entrada en Vigor: 20 de septiembre de 2025
+                                </DialogDescription>
+                              </DialogHeader>
+                              <ScrollArea className="h-96 pr-6">
+                                <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                  <h3 className="font-bold text-lg">1. ACEPTACIÓN</h3>
+                                  <p>Al registrarse en la app y usar "Que hay Pa’ hoy", el usuario confirma que es mayor de 18 años y acepta estos Términos.</p>
+                                  <h3 className="font-bold text-lg">2. NATURALEZA DEL SERVICIO</h3>
+                                  <p>"Que hay Pa’ hoy" ofrece recomendaciones generales de nutrición basadas en la fórmula de Harris-Benedict. No sustituye diagnóstico ni tratamiento profesional.</p>
+                                  <p>El contenido fue avalado por un nutricionista profesional en Colombia de la Universidad Javeriana. El aval es general y no constituye prescripción personalizada.</p>
+                                  <h3 className="font-bold text-lg">3. EXCLUSIONES DE USO</h3>
+                                  <p>No debe usarse por menores de edad ni por personas con condiciones médicas que requieran supervisión profesional.</p>
+                                  <h3 className="font-bold text-lg">4. PAGOS Y REEMBOLSOS</h3>
+                                  <ul className="list-disc pl-5 space-y-2">
+                                    <li>Modelo: pago único de $50.000 COP (sin IVA).</li>
+                                    <li>Procesador: Wompi.</li>
+                                    <li>Política: no hay reembolsos en productos digitales.</li>
+                                  </ul>
+                                  <h3 className="font-bold text-lg">5. RESPONSABILIDAD</h3>
+                                  <p>No nos hacemos responsables de efectos adversos derivados del uso de la app. El usuario es responsable de consultar a un profesional de la salud antes de modificar su dieta.</p>
+                                  <h3 className="font-bold text-lg">6. PROPIEDAD INTELECTUAL</h3>
+                                  <p>Todo el contenido de la app es propiedad de Que hay Pa’ hoy.</p>
+                                  <h3 className="font-bold text-lg">7. LEGISLACIÓN</h3>
+                                  <p>Estos términos se rigen por las leyes de la República de Colombia.</p>
+                                </div>
+                              </ScrollArea>
+                            </DialogContent>
+                          </Dialog>.
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -295,9 +336,46 @@ export default function AuthForm() {
                       <div className="space-y-1 leading-none">
                         <FormLabel>
                           He leído y acepto la{' '}
-                           <Link href="/privacy" target="_blank" className="underline hover:text-primary">
-                            Política de Privacidad
-                          </Link>.
+                           <Dialog>
+                            <DialogTrigger asChild>
+                               <span className="underline hover:text-primary cursor-pointer">Política de Privacidad</span>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle className="text-2xl">Política de Privacidad</DialogTitle>
+                                <DialogDescription>
+                                  Fecha de Entrada en Vigor: 20 de septiembre de 2025
+                                </DialogDescription>
+                              </DialogHeader>
+                              <ScrollArea className="h-96 pr-6">
+                                <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                  <p>Que hay Pa’ hoy ("nosotros") recopila y trata los datos personales de los usuarios ("usted") con el fin de ofrecer la Guía de Nutrición Digital.</p>
+                                  <h3 className="font-bold text-lg">1. DATOS RECOPILADOS</h3>
+                                  <ul className="list-disc pl-5 space-y-2">
+                                    <li>Nombre, correo electrónico, edad, sexo/género, peso, talla/altura, nivel de actividad física.</li>
+                                    <li>Datos de acceso: usuario y contraseña.</li>
+                                    <li>Datos de facturación y pago procesados por Wompi.</li>
+                                  </ul>
+                                  <h3 className="font-bold text-lg">2. FINALIDAD</h3>
+                                  <p>Los datos se utilizan para:</p>
+                                  <ul className="list-disc pl-5 space-y-2">
+                                    <li>Crear y administrar cuentas de usuario.</li>
+                                    <li>Personalizar menús de nutrición usando la fórmula de Harris-Benedict.</li>
+                                    <li>Procesar pagos y facturación mediante Wompi.</li>
+                                    <li>Cumplir obligaciones legales y de seguridad.</li>
+                                  </ul>
+                                  <h3 className="font-bold text-lg">3. RETENCIÓN</h3>
+                                  <p>Los datos se conservarán mientras la cuenta esté activa. Los datos de facturación se gestionan y conservan según la política de Wompi.</p>
+                                  <h3 className="font-bold text-lg">4. DERECHOS DEL USUARIO</h3>
+                                  <p>El usuario puede acceder, actualizar, rectificar o eliminar sus datos, escribiendo a quehaypahoyrecetas@gmail.com.</p>
+                                  <h3 className="font-bold text-lg">5. TRANSFERENCIA INTERNACIONAL</h3>
+                                  <p>La app usa Google Firebase y servidores de Google, lo cual puede implicar almacenamiento fuera de Colombia.</p>
+                                  <h3 className="font-bold text-lg">6. CONTACTO</h3>
+                                  <p>quehaypahoyrecetas@gmail.com</p>
+                                </div>
+                              </ScrollArea>
+                            </DialogContent>
+                          </Dialog>.
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -328,9 +406,9 @@ export default function AuthForm() {
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
                   {t('auth.contact_for_access')}{' '}
-                  <a href="/checkout" className="underline hover:text-primary">
+                  <Link href="/checkout" className="underline hover:text-primary">
                     {t('auth.get_code_link')}
-                  </a>
+                  </Link>
                 </p>
               </form>
             </Form>
