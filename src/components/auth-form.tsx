@@ -25,6 +25,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/context/user-context';
 import { useAuth, useFirebase } from '@/firebase/provider';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link';
 
 
 export default function AuthForm() {
@@ -49,6 +51,9 @@ export default function AuthForm() {
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
     registrationCode: z.string().min(1, t('auth.registration_code_required')),
+    acceptTerms: z.boolean().refine(val => val === true, { message: 'Debes aceptar los términos.' }),
+    acceptPrivacy: z.boolean().refine(val => val === true, { message: 'Debes aceptar la política de privacidad.' }),
+    isAdult: z.boolean().refine(val => val === true, { message: 'Debes ser mayor de 18 años.' }),
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('auth.passwords_no_match'),
     path: ['confirmPassword'],
@@ -65,7 +70,10 @@ export default function AuthForm() {
       email: '', 
       password: '', 
       confirmPassword: '',
-      registrationCode: registrationCode || '', 
+      registrationCode: registrationCode || '',
+      acceptTerms: false,
+      acceptPrivacy: false,
+      isAdult: false,
     },
   });
 
@@ -255,6 +263,65 @@ export default function AuthForm() {
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={signupForm.control}
+                  name="acceptTerms"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          He leído y acepto los{' '}
+                          <Link href="/terms" target="_blank" className="underline hover:text-primary">
+                            Términos y Condiciones
+                          </Link>.
+                        </FormLabel>
+                        <FormMessage />
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={signupForm.control}
+                  name="acceptPrivacy"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          He leído y acepto la{' '}
+                           <Link href="/privacy" target="_blank" className="underline hover:text-primary">
+                            Política de Privacidad
+                          </Link>.
+                        </FormLabel>
+                        <FormMessage />
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={signupForm.control}
+                  name="isAdult"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Confirmo que soy mayor de 18 años.
+                        </FormLabel>
+                        <FormMessage />
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                
                 <Button type="submit" className="w-full" variant="default" disabled={isLoading}>
                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('auth.signup_button')}
