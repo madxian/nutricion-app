@@ -105,6 +105,7 @@ export default function AuthForm() {
   const onLogin = async (values: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
     try {
+      if (!auth) throw new Error("Auth service not available");
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast({
         title: '¡Bienvenido de nuevo!',
@@ -125,6 +126,8 @@ export default function AuthForm() {
   const onSignup = async (values: z.infer<ReturnType<typeof getSignupSchema>>) => {
     setIsLoading(true);
     try {
+      if (!firestore || !auth) throw new Error("Firebase services not available");
+
       // Step 1: Verify the registration code in Firestore
       const codeRef = doc(firestore, 'payment_codes', values.registrationCode);
       const codeSnap = await getDoc(codeRef);
@@ -300,31 +303,55 @@ export default function AuthForm() {
                               <DialogHeader>
                                 <DialogTitle className="text-2xl">{t('auth.terms_title')}</DialogTitle>
                                 <DialogDescription>
-                                  Fecha de Entrada en Vigor: 20 de septiembre de 2025
+                                  {language === 'es' ? 'Fecha de Entrada en Vigor: 20 de septiembre de 2025' : 'Effective Date: September 20, 2025'}
                                 </DialogDescription>
                               </DialogHeader>
                               <ScrollArea className="h-96 pr-6">
-                                <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
-                                  <h3 className="font-bold text-lg">1. ACEPTACIÓN</h3>
-                                  <p>Al registrarse en la app y usar "Que hay Pa’ hoy", el usuario confirma que es mayor de 18 años y acepta estos Términos.</p>
-                                  <h3 className="font-bold text-lg">2. NATURALEZA DEL SERVICIO</h3>
-                                  <p>"Que hay Pa’ hoy" ofrece recomendaciones generales de nutrición basadas en la fórmula de Harris-Benedict. No sustituye diagnóstico ni tratamiento profesional.</p>
-                                  <p>El contenido fue avalado por un nutricionista profesional en Colombia de la Universidad Javeriana. El aval es general y no constituye prescripción personalizada.</p>
-                                  <h3 className="font-bold text-lg">3. EXCLUSIONES DE USO</h3>
-                                  <p>No debe usarse por menores de edad ni por personas con condiciones médicas que requieran supervisión profesional.</p>
-                                  <h3 className="font-bold text-lg">4. PAGOS Y REEMBOLSOS</h3>
-                                  <ul className="list-disc pl-5 space-y-2">
-                                    <li>Modelo: pago único de $50.000 COP (sin IVA).</li>
-                                    <li>Procesador: Wompi.</li>
-                                    <li>Política: no hay reembolsos en productos digitales.</li>
-                                  </ul>
-                                  <h3 className="font-bold text-lg">5. RESPONSABILIDAD</h3>
-                                  <p>No nos hacemos responsables de efectos adversos derivados del uso de la app. El usuario es responsable de consultar a un profesional de la salud antes de modificar su dieta.</p>
-                                  <h3 className="font-bold text-lg">6. PROPIEDAD INTELECTUAL</h3>
-                                  <p>Todo el contenido de la app es propiedad de Que hay Pa’ hoy.</p>
-                                  <h3 className="font-bold text-lg">7. LEGISLACIÓN</h3>
-                                  <p>Estos términos se rigen por las leyes de la República de Colombia.</p>
-                                </div>
+                                {language === 'es' ? (
+                                  <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                    <h3 className="font-bold text-lg">1. ACEPTACIÓN</h3>
+                                    <p>Al registrarse en la app y usar "Que hay Pa’ hoy", el usuario confirma que es mayor de 18 años y acepta estos Términos.</p>
+                                    <h3 className="font-bold text-lg">2. NATURALEZA DEL SERVICIO</h3>
+                                    <p>"Que hay Pa’ hoy" ofrece recomendaciones generales de nutrición basadas en la fórmula de Harris-Benedict. No sustituye diagnóstico ni tratamiento profesional.</p>
+                                    <p>El contenido fue avalado por un nutricionista profesional en Colombia de la Universidad Javeriana. El aval es general y no constituye prescripción personalizada.</p>
+                                    <h3 className="font-bold text-lg">3. EXCLUSIONES DE USO</h3>
+                                    <p>No debe usarse por menores de edad ni por personas con condiciones médicas que requieran supervisión profesional.</p>
+                                    <h3 className="font-bold text-lg">4. PAGOS Y REEMBOLSOS</h3>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Modelo: pago único de $50.000 COP (sin IVA).</li>
+                                      <li>Procesador: Wompi.</li>
+                                      <li>Política: no hay reembolsos en productos digitales.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">5. RESPONSABILIDAD</h3>
+                                    <p>No nos hacemos responsables de efectos adversos derivados del uso de la app. El usuario es responsable de consultar a un profesional de la salud antes de modificar su dieta.</p>
+                                    <h3 className="font-bold text-lg">6. PROPIEDAD INTELECTUAL</h3>
+                                    <p>Todo el contenido de la app es propiedad de Que hay Pa’ hoy.</p>
+                                    <h3 className="font-bold text-lg">7. LEGISLACIÓN</h3>
+                                    <p>Estos términos se rigen por las leyes de la República de Colombia.</p>
+                                  </div>
+                                ) : (
+                                  <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                    <h3 className="font-bold text-lg">1. ACCEPTANCE</h3>
+                                    <p>By registering in the app and using "Que hay Pa’ hoy," the user confirms they are over 18 years old and agree to these Terms.</p>
+                                    <h3 className="font-bold text-lg">2. NATURE OF THE SERVICE</h3>
+                                    <p>"Que hay Pa’ hoy" provides general nutrition recommendations based on the Harris-Benedict formula. It does not replace diagnosis or professional treatment.</p>
+                                    <p>The content was reviewed by a professional nutritionist in Colombia from Universidad Javeriana. This review is general and does not constitute personalized prescription.</p>
+                                    <h3 className="font-bold text-lg">3. EXCLUSIONS OF USE</h3>
+                                    <p>The app must not be used by minors or by individuals with medical conditions requiring professional supervision.</p>
+                                    <h3 className="font-bold text-lg">4. PAYMENTS AND REFUNDS</h3>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Model: one-time payment of COP $50,000 (VAT excluded).</li>
+                                      <li>Processor: Wompi.</li>
+                                      <li>Policy: no refunds for digital products.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">5. LIABILITY</h3>
+                                    <p>We are not responsible for adverse effects derived from the use of the app. Users are responsible for consulting a health professional before making dietary changes.</p>
+                                    <h3 className="font-bold text-lg">6. INTELLECTUAL PROPERTY</h3>
+                                    <p>All app content is property of Que hay Pa’ hoy.</p>
+                                    <h3 className="font-bold text-lg">7. GOVERNING LAW</h3>
+                                    <p>These terms are governed by the laws of the Republic of Colombia.</p>
+                                  </div>
+                                )}
                               </ScrollArea>
                             </DialogContent>
                           </Dialog>.
@@ -353,35 +380,63 @@ export default function AuthForm() {
                               <DialogHeader>
                                 <DialogTitle className="text-2xl">{t('auth.privacy_title')}</DialogTitle>
                                 <DialogDescription>
-                                  Fecha de Entrada en Vigor: 20 de septiembre de 2025
+                                  {language === 'es' ? 'Fecha de Entrada en Vigor: 20 de septiembre de 2025' : 'Effective Date: September 20, 2025'}
                                 </DialogDescription>
                               </DialogHeader>
                               <ScrollArea className="h-96 pr-6">
-                                <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
-                                  <p>Que hay Pa’ hoy ("nosotros") recopila y trata los datos personales de los usuarios ("usted") con el fin de ofrecer la Guía de Nutrición Digital.</p>
-                                  <h3 className="font-bold text-lg">1. DATOS RECOPILADOS</h3>
-                                  <ul className="list-disc pl-5 space-y-2">
-                                    <li>Nombre, correo electrónico, edad, sexo/género, peso, talla/altura, nivel de actividad física.</li>
-                                    <li>Datos de acceso: usuario y contraseña.</li>
-                                    <li>Datos de facturación y pago procesados por Wompi.</li>
-                                  </ul>
-                                  <h3 className="font-bold text-lg">2. FINALIDAD</h3>
-                                  <p>Los datos se utilizan para:</p>
-                                  <ul className="list-disc pl-5 space-y-2">
-                                    <li>Crear y administrar cuentas de usuario.</li>
-                                    <li>Personalizar menús de nutrición usando la fórmula de Harris-Benedict.</li>
-                                    <li>Procesar pagos y facturación mediante Wompi.</li>
-                                    <li>Cumplir obligaciones legales y de seguridad.</li>
-                                  </ul>
-                                  <h3 className="font-bold text-lg">3. RETENCIÓN</h3>
-                                  <p>Los datos se conservarán mientras la cuenta esté activa. Los datos de facturación se gestionan y conservan según la política de Wompi.</p>
-                                  <h3 className="font-bold text-lg">4. DERECHOS DEL USUARIO</h3>
-                                  <p>El usuario puede acceder, actualizar, rectificar o eliminar sus datos, escribiendo a quehaypahoyrecetas@gmail.com.</p>
-                                  <h3 className="font-bold text-lg">5. TRANSFERENCIA INTERNACIONAL</h3>
-                                  <p>La app usa Google Firebase y servidores de Google, lo cual puede implicar almacenamiento fuera de Colombia.</p>
-                                  <h3 className="font-bold text-lg">6. CONTACTO</h3>
-                                  <p>quehaypahoyrecetas@gmail.com</p>
-                                </div>
+                                {language === 'es' ? (
+                                  <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                    <p>Que hay Pa’ hoy ("nosotros") recopila y trata los datos personales de los usuarios ("usted") con el fin de ofrecer la Guía de Nutrición Digital.</p>
+                                    <h3 className="font-bold text-lg">1. DATOS RECOPILADOS</h3>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Nombre, correo electrónico, edad, sexo/género, peso, talla/altura, nivel de actividad física.</li>
+                                      <li>Datos de acceso: usuario y contraseña.</li>
+                                      <li>Datos de facturación y pago procesados por Wompi.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">2. FINALIDAD</h3>
+                                    <p>Los datos se utilizan para:</p>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Crear y administrar cuentas de usuario.</li>
+                                      <li>Personalizar menús de nutrición usando la fórmula de Harris-Benedict.</li>
+                                      <li>Procesar pagos y facturación mediante Wompi.</li>
+                                      <li>Cumplir obligaciones legales y de seguridad.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">3. RETENCIÓN</h3>
+                                    <p>Los datos se conservarán mientras la cuenta esté activa. Los datos de facturación se gestionan y conservan según la política de Wompi.</p>
+                                    <h3 className="font-bold text-lg">4. DERECHOS DEL USUARIO</h3>
+                                    <p>El usuario puede acceder, actualizar, rectificar o eliminar sus datos, escribiendo a quehaypahoyrecetas@gmail.com.</p>
+                                    <h3 className="font-bold text-lg">5. TRANSFERENCIA INTERNACIONAL</h3>
+                                    <p>La app usa Google Firebase y servidores de Google, lo cual puede implicar almacenamiento fuera de Colombia.</p>
+                                    <h3 className="font-bold text-lg">6. CONTACTO</h3>
+                                    <p>quehaypahoyrecetas@gmail.com</p>
+                                  </div>
+                                ) : (
+                                  <div className="prose dark:prose-invert max-w-none space-y-4 text-sm">
+                                    <p>Que hay Pa’ hoy ("we") collects and processes personal data of users ("you") in order to provide the Digital Nutrition Guide.</p>
+                                    <h3 className="font-bold text-lg">1. DATA COLLECTED</h3>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Name, email address, age, sex/gender, weight, height, physical activity level.</li>
+                                      <li>Access data: username and password.</li>
+                                      <li>Billing and payment data processed through Wompi.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">2. PURPOSE</h3>
+                                    <p>The data is used to:</p>
+                                    <ul className="list-disc pl-5 space-y-2">
+                                      <li>Create and manage user accounts.</li>
+                                      <li>Personalize nutrition menus using the Harris-Benedict formula.</li>
+                                      <li>Process payments and billing via Wompi.</li>
+                                      <li>Comply with legal and security obligations.</li>
+                                    </ul>
+                                    <h3 className="font-bold text-lg">3. RETENTION</h3>
+                                    <p>Data will be kept as long as the account is active. Billing data is managed and retained according to Wompi's policies.</p>
+                                    <h3 className="font-bold text-lg">4. USER RIGHTS</h3>
+                                    <p>Users may access, update, rectify, or delete their data by writing to quehaypahoyrecetas@gmail.com.</p>
+                                    <h3 className="font-bold text-lg">5. INTERNATIONAL TRANSFER</h3>
+                                    <p>The app uses Google Firebase and Google servers, which may imply storage outside Colombia.</p>
+                                    <h3 className="font-bold text-lg">6. CONTACT</h3>
+                                    <p>quehaypahoyrecetas@gmail.com</p>
+                                  </div>
+                                )}
                               </ScrollArea>
                             </DialogContent>
                           </Dialog>.
