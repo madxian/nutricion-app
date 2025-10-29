@@ -35,55 +35,51 @@ export const wompiWebhook = functions
     secrets: ["WOMPI_EVENT_SECRET"],
   })
   .https.onRequest(async (request, response) => {
-    // 1. Verify Signature to ensure the request is from Wompi
-    const signatureHeader = request.headers["x-wompi-signature"];
+    // --- Signature Verification Logic ---
     const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
-
-    if (!signatureHeader || typeof signatureHeader !== "string" || !wompiEventSecret) {
-      functions.logger.warn("Missing signature header or event secret.");
-      response.status(400).send("Configuration error or missing signature.");
-      return;
+    if (!wompiEventSecret) {
+        functions.logger.error("WOMPI_EVENT_SECRET is not set.");
+        response.status(500).send("Server configuration error.");
+        return;
     }
 
-    try {
-      const bodyString = JSON.stringify(request.body);
-      const signatureParts = signatureHeader.split(",").reduce((acc, part) => {
-        const [key, value] = part.split("=");
-        if (key && value) {
-          acc[key.trim()] = value.trim();
-        }
-        return acc;
-      }, {} as Record<string, string>);
+    // Wompi sends the checksum in a different format for event webhooks
+    const receivedChecksum = request.body.signature?.checksum;
+    const eventProperties = request.body.signature?.properties;
 
-      const timestamp = signatureParts.t;
-      const receivedSignature = signatureParts.v1;
-
-      if (!timestamp || !receivedSignature) {
-        response.status(400).send("Invalid signature header format.");
+    if (!receivedChecksum || !eventProperties) {
+        functions.logger.warn("Request missing signature or properties.");
+        response.status(400).send("Missing signature information.");
         return;
-      }
-      
-      const stringToSign = `${bodyString}${timestamp}${wompiEventSecret}`;
-      const hmac = crypto.createHmac("sha256", wompiEventSecret);
-      hmac.update(stringToSign);
-      const computedSignature = hmac.digest("hex");
-      
-      const receivedSignatureBuffer = Buffer.from(receivedSignature, "hex");
-      const computedSignatureBuffer = Buffer.from(computedSignature, "hex");
+    }
+    
+    // The string to sign is a concatenation of property values + the event secret
+    const stringToSign = eventProperties
+        .map((prop: string) => {
+            // Path can be nested, e.g., 'transaction.id'
+            const propPath = prop.split('.');
+            let value = request.body.data;
+            for (const key of propPath) {
+                value = value?.[key];
+            }
+            return value;
+        })
+        .join('') + wompiEventSecret;
 
-      if (!crypto.timingSafeEqual(computedSignatureBuffer, receivedSignatureBuffer)) {
-        functions.logger.warn("Invalid signature.", { received: receivedSignature, computed: "hidden" });
-        response.status(403).send("Invalid signature.");
+    const computedChecksum = crypto.createHash('sha256').update(stringToSign).digest('hex');
+
+    if (computedChecksum !== receivedChecksum) {
+        functions.logger.warn("Invalid checksum.", {
+            received: receivedChecksum,
+            computed: "hidden", // Avoid logging the computed checksum for security
+            stringToSign: "hidden"
+        });
+        response.status(403).send("Invalid checksum.");
         return;
-      }
-    } catch (error) {
-      functions.logger.error("Error verifying signature:", error);
-      response.status(500).send("Error during signature verification.");
-      return;
     }
 
     // --- Signature is valid, proceed with logic ---
-    functions.logger.info("Signature verified. Processing Wompi event.");
+    functions.logger.info("Checksum verified. Processing Wompi event.");
 
     const event = request.body.data;
     const transaction = event.transaction;
