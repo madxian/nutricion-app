@@ -107,20 +107,8 @@ export const wompiWebhook = functions
             functions.logger.info(`Payment ${reference} has status: ${status}`);
         }
 
-        // --- Respond to Wompi with a valid checksum ---
-        const responseChecksumString = `${transaction.id}${status}${transaction.amount_in_cents}${wompiEventSecret}`;
-        const responseChecksum = crypto.createHash('sha256').update(responseChecksumString).digest('hex');
-        
-        response.status(200).send({
-            signature: {
-                checksum: responseChecksum,
-                properties: [
-                    "transaction.id",
-                    "transaction.status",
-                    "transaction.amount_in_cents"
-                ]
-            }
-        });
+       // Respond to Wompi to acknowledge receipt of the event.
+       response.status(200).send({ received: true });
 
     } catch (dbError) {
         functions.logger.error(`Error writing to Firestore for reference ${reference}:`, dbError);
