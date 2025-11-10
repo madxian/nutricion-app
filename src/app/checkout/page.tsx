@@ -52,8 +52,7 @@ export default function CheckoutPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-4xl font-bold mb-2">$50,000 COP</p>
-            <p className="text-muted-foreground">Pago único</p>
+            <p className="text-muted-foreground">Pago único para acceso de por vida.</p>
           </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={handlePayment} disabled={isLoading}>
