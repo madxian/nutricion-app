@@ -60,7 +60,11 @@ export const wompiWebhook = functions
             const propPath = prop.split('.');
             let value = request.body.data;
             for (const key of propPath) {
-                value = value?.[key];
+                if (value && typeof value === 'object' && key in value) {
+                    value = value[key];
+                } else {
+                    return ''; // Property not found, return empty string
+                }
             }
             return value;
         })
@@ -72,6 +76,7 @@ export const wompiWebhook = functions
         functions.logger.warn("Invalid checksum.", {
             received: receivedChecksum,
             computed: "hidden", // Avoid logging the computed checksum for security
+            stringToSign: "hidden"
         });
         response.status(403).send("Invalid checksum.");
         return;
@@ -120,3 +125,4 @@ export const wompiWebhook = functions
         response.status(500).send("Internal server error while processing payment.");
     }
 });
+
