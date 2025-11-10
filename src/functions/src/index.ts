@@ -1,3 +1,4 @@
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
@@ -42,7 +43,7 @@ export const wompiWebhook = functions
         return;
     }
 
-    // --- Signature Verification Logic ---
+    // --- Signature Verification Logic (Wompi Event Webhook) ---
     const receivedChecksum = request.body.signature?.checksum;
     const eventProperties = request.body.signature?.properties;
 
@@ -52,8 +53,10 @@ export const wompiWebhook = functions
         return;
     }
     
+    // The string to sign is a concatenation of property values + the event secret
     const stringToSign = eventProperties
         .map((prop: string) => {
+            // Path can be nested, e.g., 'transaction.id'
             const propPath = prop.split('.');
             let value = request.body.data;
             for (const key of propPath) {
@@ -66,7 +69,10 @@ export const wompiWebhook = functions
     const computedChecksum = crypto.createHash('sha256').update(stringToSign).digest('hex');
 
     if (computedChecksum !== receivedChecksum) {
-        functions.logger.warn("Invalid checksum.", { received: receivedChecksum });
+        functions.logger.warn("Invalid checksum.", {
+            received: receivedChecksum,
+            computed: "hidden", // Avoid logging the computed checksum for security
+        });
         response.status(403).send("Invalid checksum.");
         return;
     }
@@ -77,7 +83,7 @@ export const wompiWebhook = functions
     const event = request.body.data;
     const transaction = event.transaction;
     const reference = transaction.reference;
-    const status = transaction.status;
+    const status = transaction.status; // e.g., 'APPROVED', 'DECLINED'
 
     if (!reference) {
         functions.logger.error("Transaction is missing a reference.", transaction);
@@ -100,16 +106,15 @@ export const wompiWebhook = functions
             functions.logger.info(`Payment ${reference} approved. Generated code: ${registrationCode}`);
         } else {
             await paymentRef.set({
-                status: status,
+                status: status, // Could be 'DECLINED', 'VOIDED', etc.
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 transactionId: transaction.id,
-            }, { merge: true });
+            }, { merge: true }); // Merge to not overwrite a potential existing document
             functions.logger.info(`Payment ${reference} has status: ${status}`);
         }
 
-       // Respond to Wompi to acknowledge receipt of the event.
-       response.status(200).send({ received: true });
-
+        // Respond to Wompi to acknowledge receipt of the event.
+        response.status(200).send({ received: true });
     } catch (dbError) {
         functions.logger.error(`Error writing to Firestore for reference ${reference}:`, dbError);
         response.status(500).send("Internal server error while processing payment.");
