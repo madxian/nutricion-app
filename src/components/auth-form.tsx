@@ -481,12 +481,14 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('auth.signup_button')}
                 </Button>
-                <p className="text-center text-sm text-muted-foreground">
-                  {t('auth.contact_for_access')}{' '}
-                  <Link href="/checkout" className="underline hover:text-primary">
-                    {t('auth.get_code_link')}
-                  </Link>
-                </p>
+                <div className="space-y-2 text-center">
+                  <p className="text-sm text-muted-foreground">{t('auth.contact_for_access')}</p>
+                  <Button asChild>
+                    <Link href="/checkout">
+                      {t('auth.get_code_link')}
+                    </Link>
+                  </Button>
+                </div>
               </form>
             </Form>
           </TabsContent>
