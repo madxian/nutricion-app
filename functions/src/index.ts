@@ -1,3 +1,4 @@
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
@@ -24,6 +25,12 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
+// Helper function to safely get nested properties
+const getNestedValue = (obj: any, path: string): any => {
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+};
+
+
 /**
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
@@ -35,7 +42,6 @@ export const wompiWebhook = functions
     secrets: ["WOMPI_EVENT_SECRET"],
   })
   .https.onRequest(async (request, response) => {
-    // --- Signature Verification Logic ---
     const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
     if (!wompiEventSecret) {
         functions.logger.error("WOMPI_EVENT_SECRET is not set.");
@@ -43,12 +49,12 @@ export const wompiWebhook = functions
         return;
     }
 
-    // Wompi sends the checksum in a different format for event webhooks
+    // --- Signature Verification Logic (Wompi Event Webhook) ---
     const receivedChecksum = request.body.signature?.checksum;
     const eventProperties = request.body.signature?.properties;
 
     if (!receivedChecksum || !eventProperties) {
-        functions.logger.warn("Request missing signature or properties.");
+        functions.logger.warn("Request missing Wompi signature or properties in body.");
         response.status(400).send("Missing signature information.");
         return;
     }
@@ -56,13 +62,7 @@ export const wompiWebhook = functions
     // The string to sign is a concatenation of property values + the event secret
     const stringToSign = eventProperties
         .map((prop: string) => {
-            // Path can be nested, e.g., 'transaction.id'
-            const propPath = prop.split('.');
-            let value = request.body.data;
-            for (const key of propPath) {
-                value = value?.[key];
-            }
-            return value;
+            return getNestedValue(request.body.data, prop);
         })
         .join('') + wompiEventSecret;
 
