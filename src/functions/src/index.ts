@@ -25,6 +25,12 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
+// Helper function to safely get nested properties
+const getNestedValue = (obj: any, path: string): any => {
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+};
+
+
 /**
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
@@ -56,17 +62,7 @@ export const wompiWebhook = functions
     // The string to sign is a concatenation of property values + the event secret
     const stringToSign = eventProperties
         .map((prop: string) => {
-            // Path can be nested, e.g., 'transaction.id'
-            const propPath = prop.split('.');
-            let value = request.body.data;
-            for (const key of propPath) {
-                if (value && typeof value === 'object' && key in value) {
-                    value = value[key];
-                } else {
-                    return ''; // Property not found, return empty string
-                }
-            }
-            return value;
+            return getNestedValue(request.body.data, prop);
         })
         .join('') + wompiEventSecret;
 
@@ -125,4 +121,3 @@ export const wompiWebhook = functions
         response.status(500).send("Internal server error while processing payment.");
     }
 });
-
