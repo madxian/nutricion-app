@@ -38,7 +38,11 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-export default function AuthForm() {
+interface AuthFormProps {
+  defaultTab?: 'login' | 'signup';
+}
+
+export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
   const { t, setLanguage, language } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -49,6 +53,7 @@ export default function AuthForm() {
   const { saveUserData } = useUser();
   
   const registrationCode = searchParams.get('code');
+  const initialTab = registrationCode ? 'signup' : defaultTab;
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
@@ -171,6 +176,14 @@ export default function AuthForm() {
       setIsLoading(false);
     }
   };
+  
+  const handleTabChange = (value: string) => {
+    if (value === 'signup') {
+      router.push('/registro');
+    } else {
+      router.push('/');
+    }
+  };
 
   return (
     <Card className="shadow-2xl">
@@ -187,7 +200,7 @@ export default function AuthForm() {
           <Button variant={language === 'es' ? 'default' : 'outline'} size="sm" onClick={() => setLanguage('es')}>Español</Button>
           <Button variant={language === 'en' ? 'default' : 'outline'} size="sm" onClick={() => setLanguage('en')}>English</Button>
         </div>
-        <Tabs defaultValue={registrationCode ? 'signup' : 'login'} className="w-full">
+        <Tabs defaultValue={initialTab} className="w-full" onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">{t('auth.login_tab')}</TabsTrigger>
             <TabsTrigger value="signup">{t('auth.signup_tab')}</TabsTrigger>
