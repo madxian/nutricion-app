@@ -25,7 +25,7 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
-// Helper function to safely get nested properties
+// Helper function to safely get nested properties from an object path string like "transaction.id"
 const getNestedValue = (obj: any, path: string): any => {
     return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 };
@@ -45,7 +45,7 @@ export const wompiWebhook = functions
     const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
     if (!wompiEventSecret) {
         functions.logger.error("WOMPI_EVENT_SECRET is not set.");
-        response.status(500).send("Server configuration error.");
+        response.status(500).json({ error: "Server configuration error." });
         return;
     }
 
@@ -53,9 +53,9 @@ export const wompiWebhook = functions
     const receivedChecksum = request.body.signature?.checksum;
     const eventProperties = request.body.signature?.properties;
 
-    if (!receivedChecksum || !eventProperties) {
-        functions.logger.warn("Request missing Wompi signature or properties in body.");
-        response.status(400).send("Missing signature information.");
+    if (!receivedChecksum || !Array.isArray(eventProperties)) {
+        functions.logger.warn("Request body missing Wompi signature checksum or properties.");
+        response.status(400).json({ error: "Missing signature information." });
         return;
     }
     
@@ -72,9 +72,8 @@ export const wompiWebhook = functions
         functions.logger.warn("Invalid checksum.", {
             received: receivedChecksum,
             computed: "hidden", // Avoid logging the computed checksum for security
-            stringToSign: "hidden"
         });
-        response.status(403).send("Invalid checksum.");
+        response.status(403).json({ error: "Invalid checksum." });
         return;
     }
 
@@ -82,13 +81,13 @@ export const wompiWebhook = functions
     functions.logger.info("Checksum verified. Processing Wompi event.");
 
     const event = request.body.data;
-    const transaction = event.transaction;
-    const reference = transaction.reference;
-    const status = transaction.status; // e.g., 'APPROVED', 'DECLINED'
+    const transaction = event?.transaction;
+    const reference = transaction?.reference;
+    const status = transaction?.status; // e.g., 'APPROVED', 'DECLINED'
 
     if (!reference) {
         functions.logger.error("Transaction is missing a reference.", transaction);
-        response.status(400).send("Transaction reference is missing.");
+        response.status(400).json({ error: "Transaction reference is missing." });
         return;
     }
 
@@ -115,9 +114,9 @@ export const wompiWebhook = functions
         }
 
         // Respond to Wompi to acknowledge receipt of the event.
-        response.status(200).send({ received: true });
+        response.status(200).json({ received: true });
     } catch (dbError) {
         functions.logger.error(`Error writing to Firestore for reference ${reference}:`, dbError);
-        response.status(500).send("Internal server error while processing payment.");
+        response.status(500).json({ error: "Internal server error while processing payment." });
     }
 });
