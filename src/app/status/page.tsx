@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -35,7 +36,7 @@ export default function StatusPage() {
     if (paymentData?.status === 'APPROVED' && paymentData.registrationCode) {
       // If approved, wait a moment to show the success message, then redirect.
       const timer = setTimeout(() => {
-        router.push(`/?code=${paymentData.registrationCode}`);
+        router.push(`/registro?code=${paymentData.registrationCode}`);
       }, 2000); // 2-second delay
       return () => clearTimeout(timer);
     }
