@@ -87,7 +87,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             return; // Wait until loading is complete
         }
 
-        const publicRoutes = ['/', '/checkout'];
+        const publicRoutes = ['/', '/checkout', '/registro'];
         const isPublicRoute = publicRoutes.includes(pathname);
 
         if (isLoggedIn) {
