@@ -27,12 +27,15 @@ function generateRegistrationCode(): string {
 
 // Helper to safely get nested properties from an object path string.
 const getNestedValue = (obj: any, path: string): any => {
-    if (obj === null || obj === undefined) {
-        return "";
+    if (obj === null || typeof obj === 'undefined') {
+        return null;
     }
-    // Handle cases where the path might not fully exist, especially with nested objects.
-    const value = path.split(".").reduce((acc, part) => acc && acc[part], obj);
-    return value;
+    return path.split(".").reduce((acc, part) => {
+        if (acc === null || typeof acc === 'undefined') {
+            return null;
+        }
+        return acc[part];
+    }, obj);
 };
 
 /**
@@ -62,8 +65,12 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     const stringToSign = eventProperties
         .map((prop: string) => {
             const value = getNestedValue(request.body.data, prop);
-            // Wompi expects null/undefined values to be represented as empty strings.
-            return value !== null && value !== undefined ? value : "";
+            // Wompi expects null/undefined values to be represented as empty strings,
+            // and numbers to be converted to strings.
+            if (value === null || typeof value === 'undefined') {
+                return "";
+            }
+            return String(value);
         })
         .join("") + wompiEventSecret;
 
@@ -72,8 +79,8 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     if (computedChecksum !== receivedChecksum) {
         logger.warn("Invalid checksum.", {
             received: receivedChecksum,
-            computed: "hidden", // Avoid logging the computed checksum for security
-            stringToSign: "hidden" // Avoid logging the string with the secret
+            computed: computedChecksum, 
+            stringToSign: stringToSign,
         });
         response.status(403).json({ error: "Invalid checksum." });
         return;
