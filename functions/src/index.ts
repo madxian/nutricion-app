@@ -25,16 +25,6 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
-// Helper to safely get nested properties from an object path string.
-const getNestedValue = (obj: any, path: string): any => {
-    return path.split(".").reduce((acc, part) => {
-        if (acc === null || typeof acc === 'undefined') {
-            return null;
-        }
-        return acc[part];
-    }, obj);
-};
-
 /**
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
@@ -58,18 +48,14 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
         return;
     }
 
-    // Dynamically build the string to sign based on the properties Wompi provides
-    const stringToSign = eventProperties
-        .map((prop: string) => {
-            const value = getNestedValue(request.body.data, prop);
-            // Wompi expects null/undefined values to be represented as empty strings,
-            // and numbers to be converted to strings.
-            if (value === null || typeof value === 'undefined') {
-                return "";
-            }
-            return String(value);
-        })
-        .join("") + wompiEventSecret;
+    // Explicitly get the values required by Wompi's signature properties.
+    const transactionId = request.body.data.transaction.id;
+    const transactionStatus = request.body.data.transaction.status;
+    const transactionAmount = request.body.data.transaction.amount_in_cents;
+    
+    // Concatenate the values in the exact order specified by Wompi.
+    // The amount is a number, so it gets implicitly converted to a string.
+    const stringToSign = `${transactionId}${transactionStatus}${transactionAmount}` + wompiEventSecret;
 
     const computedChecksum = crypto.createHash("sha256").update(stringToSign).digest("hex");
 
@@ -77,7 +63,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
         logger.warn("Invalid checksum.", {
             received: receivedChecksum,
             computed: computedChecksum, 
-            stringToSign: stringToSign,
+            stringToSign: stringToSign, // Log the exact string we used to compute the hash
         });
         response.status(403).json({ error: "Invalid checksum." });
         return;
