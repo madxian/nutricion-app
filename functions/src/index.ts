@@ -40,15 +40,14 @@ const getNestedValue = (obj: any, path: string): any => {
  * It verifies the request signature to ensure it comes from Wompi.
  */
 export const wompiWebhook = functions
-  .region("us-central1") // Specify region if not default
-  .runWith({
-    // Make secrets available to the function
-    secrets: ["WOMPI_EVENT_SECRET"],
-  })
+  .region("us-central1")
   .https.onRequest(async (request, response) => {
+
+    // DOTENV
     const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
+
     if (!wompiEventSecret) {
-        functions.logger.error("WOMPI_EVENT_SECRET is not set.");
+        functions.logger.error("WOMPI_EVENT_SECRET is not set in environment variables.");
         response.status(500).json({ error: "Server configuration error." });
         return;
     }
