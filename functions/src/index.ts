@@ -62,7 +62,9 @@ export const wompiWebhook = functions
     // The string to sign is a concatenation of property values + the event secret
     const stringToSign = eventProperties
         .map((prop: string) => {
-            return getNestedValue(request.body.data, prop);
+            const value = getNestedValue(request.body.data, prop);
+            // Wompi expects null/undefined values to be represented as empty strings in the concatenation
+            return value !== null && value !== undefined ? value : '';
         })
         .join('') + wompiEventSecret;
 
