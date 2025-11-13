@@ -27,6 +27,10 @@ function generateRegistrationCode(): string {
 
 // Helper function to safely get nested properties from an object path string like "transaction.id"
 const getNestedValue = (obj: any, path: string): any => {
+    // Return an empty string if the object is null or undefined to handle cases like missing billing_data
+    if (obj === null || obj === undefined) {
+        return '';
+    }
     return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 };
 
