@@ -63,6 +63,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     const stringToSign = eventProperties
         .map((prop: string) => {
             const value = getNestedValue(request.body.data, prop);
+            // Wompi expects null/undefined values to be represented as empty strings.
             return value !== null && value !== undefined ? value : "";
         })
         .join("") + wompiEventSecret;
@@ -73,6 +74,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
         logger.warn("Invalid checksum.", {
             received: receivedChecksum,
             computed: "hidden", // Avoid logging the computed checksum for security
+            stringToSign: "hidden" // Avoid logging the string with the secret
         });
         response.status(403).json({ error: "Invalid checksum." });
         return;
