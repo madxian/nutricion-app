@@ -27,9 +27,6 @@ function generateRegistrationCode(): string {
 
 // Helper to safely get nested properties from an object path string.
 const getNestedValue = (obj: any, path: string): any => {
-    if (obj === null || typeof obj === 'undefined') {
-        return null;
-    }
     return path.split(".").reduce((acc, part) => {
         if (acc === null || typeof acc === 'undefined') {
             return null;
