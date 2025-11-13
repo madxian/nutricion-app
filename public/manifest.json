@@ -1,0 +1,21 @@
+{
+  "name": "¿Qué hay pa' hoy?",
+  "short_name": "QuéHayPaHoy",
+  "description": "Tu planificador de comidas inteligente con el sazón Colombiano.",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#90D590",
+  "background_color": "#F0FFF0"
+}

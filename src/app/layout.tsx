@@ -8,6 +8,7 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 export const metadata: Metadata = {
   title: '¿Qué hay pa\' hoy?',
   description: 'Tu planificador de comidas inteligente.',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
