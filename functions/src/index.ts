@@ -30,11 +30,9 @@ const getNestedValue = (obj: any, path: string): any => {
     if (obj === null || obj === undefined) {
         return "";
     }
-    // Crucial fix: If the object is empty, it can't have nested properties.
-    if (typeof obj === 'object' && Object.keys(obj).length === 0) {
-        return null;
-    }
-    return path.split(".").reduce((acc, part) => acc && acc[part], obj);
+    // Handle cases where the path might not fully exist, especially with nested objects.
+    const value = path.split(".").reduce((acc, part) => acc && acc[part], obj);
+    return value;
 };
 
 /**
@@ -60,6 +58,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
         return;
     }
 
+    // Dynamically build the string to sign based on the properties Wompi provides
     const stringToSign = eventProperties
         .map((prop: string) => {
             const value = getNestedValue(request.body.data, prop);
