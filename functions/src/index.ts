@@ -51,7 +51,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
 
   if (!receivedChecksum || !Array.isArray(eventProperties) || !eventTimestamp) {
     logger.warn(
-      "Request body missing signature checksum, properties, or timestamp."
+      "Request body missing Wompi signature checksum, properties, or timestamp."
     );
     response.status(400).json({ error: "Missing signature information." });
     return;
@@ -62,8 +62,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     .map((prop: string) => {
       const value = getNestedValue(request.body.data, prop);
       // As per Wompi docs, numbers are concatenated as their string representation.
-      // Null and undefined values should result in an empty string if not handled,
-      // but let's be explicit for clarity.
+      // Null and undefined values should result in an empty string.
       if (value === null || value === undefined) {
         return '';
       }
@@ -84,7 +83,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     logger.warn("Invalid checksum.", {
       received: receivedChecksum,
       computed: computedChecksum,
-      stringToSign: stringToSign,
+      stringToSign: stringToSign, // Log the exact string we are hashing
       details: {
         concatenatedValues,
         eventTimestamp,
