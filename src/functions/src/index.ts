@@ -26,12 +26,12 @@ function generateRegistrationCode(): string {
 }
 
 // Helper function to safely get nested properties from an object path string like "transaction.id"
-const getNestedValue = (obj: any, path: string): any => {
-    // Return an empty string if the object is null or undefined to handle cases like missing billing_data
-    if (obj === null || obj === undefined) {
+const getNestedValue = (obj: any, path: string): string => {
+    const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    if (value === null || value === undefined) {
         return '';
     }
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    return String(value);
 };
 
 
@@ -56,28 +56,32 @@ export const wompiWebhook = functions
     // --- Signature Verification Logic (Wompi Event Webhook) ---
     const receivedChecksum = request.body.signature?.checksum;
     const eventProperties = request.body.signature?.properties;
+    const eventTimestamp = request.body.timestamp;
 
-    if (!receivedChecksum || !Array.isArray(eventProperties)) {
-        functions.logger.warn("Request body missing Wompi signature checksum or properties.");
+
+    if (!receivedChecksum || !Array.isArray(eventProperties) || !eventTimestamp) {
+        functions.logger.warn("Request body missing Wompi signature checksum, properties, or timestamp.");
         response.status(400).json({ error: "Missing signature information." });
         return;
     }
     
-    // The string to sign is a concatenation of property values + the event secret
-    const stringToSign = eventProperties
-        .map((prop: string) => {
-            const value = getNestedValue(request.body.data, prop);
-            // Wompi expects null/undefined values to be represented as empty strings in the concatenation
-            return value !== null && value !== undefined ? value : '';
-        })
-        .join('') + wompiEventSecret;
+    // Step 1: Concatenate the values of the event data properties
+    const propertyValues = eventProperties
+        .map((prop: string) => getNestedValue(request.body.data, prop))
+        .join('');
+    
+    // Step 2 & 3: Concatenate timestamp and secret
+    const stringToSign = `${propertyValues}${eventTimestamp}${wompiEventSecret}`;
 
+    // Step 4: Use SHA256 to generate the checksum
     const computedChecksum = crypto.createHash('sha256').update(stringToSign).digest('hex');
 
     if (computedChecksum !== receivedChecksum) {
         functions.logger.warn("Invalid checksum.", {
             received: receivedChecksum,
-            computed: "hidden", // Avoid logging the computed checksum for security
+            computed: computedChecksum,
+            stringToSign: stringToSign,
+            propertyValues: eventProperties.map((prop: string) => ({ [prop]: getNestedValue(request.body.data, prop) }))
         });
         response.status(403).json({ error: "Invalid checksum." });
         return;
