@@ -27,7 +27,14 @@ function generateRegistrationCode(): string {
 
 // Helper function to safely get nested properties from an object path string like "transaction.id"
 const getNestedValue = (obj: any, path: string): any => {
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    if (obj === null || obj === undefined) {
+        return '';
+    }
+    const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value);
 };
 
 
@@ -60,13 +67,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
   // Step 1: Concatenate the values of the event data properties
   const concatenatedValues = eventProperties
     .map((prop: string) => {
-      const value = getNestedValue(request.body.data, prop);
-      // As per Wompi docs, numbers are concatenated as their string representation.
-      // Null and undefined values should result in an empty string.
-      if (value === null || value === undefined) {
-        return '';
-      }
-      return String(value);
+      return getNestedValue(request.body.data, prop);
     })
     .join('');
 
@@ -83,7 +84,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     logger.warn("Invalid checksum.", {
       received: receivedChecksum,
       computed: computedChecksum,
-      stringToSign: stringToSign, // Log the exact string we are hashing
+      stringToSign: stringToSign,
       details: {
         concatenatedValues,
         eventTimestamp,
@@ -126,7 +127,7 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     } else {
       await paymentRef.set(
         {
-          status: status,
+          status: status, // Could be 'DECLINED', 'VOIDED', etc.
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           transactionId: transaction.id,
         },
