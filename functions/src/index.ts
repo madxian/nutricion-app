@@ -25,19 +25,6 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
-// Helper function to safely get nested properties from an object path string like "transaction.id"
-const getNestedValue = (obj: any, path: string): any => {
-    if (obj === null || obj === undefined) {
-        return '';
-    }
-    const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    if (value === null || value === undefined) {
-        return '';
-    }
-    return String(value);
-};
-
-
 /**
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
@@ -53,24 +40,24 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
 
   // --- Signature Verification Logic (Wompi Event Webhook) ---
   const receivedChecksum = request.body.signature?.checksum;
-  const eventProperties = request.body.signature?.properties;
   const eventTimestamp = request.body.timestamp;
 
-  if (!receivedChecksum || !Array.isArray(eventProperties) || !eventTimestamp) {
+  if (!receivedChecksum || !eventTimestamp) {
     logger.warn(
-      "Request body missing Wompi signature checksum, properties, or timestamp."
+      "Request body missing Wompi signature checksum or timestamp."
     );
     response.status(400).json({ error: "Missing signature information." });
     return;
   }
-
+  
   // Step 1: Concatenate the values of the event data properties
-  const concatenatedValues = eventProperties
-    .map((prop: string) => {
-      return getNestedValue(request.body.data, prop);
-    })
-    .join('');
+  // Following the documentation literally and directly.
+  const transactionId = request.body.data.transaction.id;
+  const transactionStatus = request.body.data.transaction.status;
+  const transactionAmount = request.body.data.transaction.amount_in_cents;
 
+  const concatenatedValues = `${transactionId}${transactionStatus}${transactionAmount}`;
+  
   // Step 2 & 3: Concatenate timestamp and secret
   const stringToSign = `${concatenatedValues}${eventTimestamp}${wompiEventSecret}`;
   
@@ -82,12 +69,12 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
 
   if (computedChecksum !== receivedChecksum) {
     logger.warn("Invalid checksum.", {
-      received: receivedChecksum,
-      computed: computedChecksum,
-      stringToSign: stringToSign,
       details: {
-        concatenatedValues,
-        eventTimestamp,
+        stringToSign: stringToSign,
+        computed: computedChecksum,
+        received: receivedChecksum,
+        concatenatedValues: concatenatedValues,
+        eventTimestamp: eventTimestamp,
         wompiEventSecret: '***' // Do not log the secret
       }
     });
