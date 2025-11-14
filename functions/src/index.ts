@@ -27,12 +27,9 @@ function generateRegistrationCode(): string {
 
 // Helper function to safely get nested properties from an object path string like "transaction.id"
 const getNestedValue = (obj: any, path: string): any => {
-  if (obj === null || obj === undefined) {
-    return "";
-  }
-  const value = path.split(".").reduce((acc, part) => acc && acc[part], obj);
-  return value !== undefined ? value : "";
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 };
+
 
 /**
  * Public Cloud Function to receive webhook events from Wompi.
@@ -60,19 +57,23 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
     return;
   }
 
-  // Step 1: Concatenate the values of the event data
-  const propertyValues = eventProperties
+  // Step 1: Concatenate the values of the event data properties
+  const concatenatedValues = eventProperties
     .map((prop: string) => {
       const value = getNestedValue(request.body.data, prop);
-      // As per Wompi docs, null/undefined values are concatenated as empty strings.
-      // Numbers are concatenated as their string representation.
-      return value !== null && value !== undefined ? String(value) : "";
+      // As per Wompi docs, numbers are concatenated as their string representation.
+      // Null and undefined values should result in an empty string if not handled,
+      // but let's be explicit for clarity.
+      if (value === null || value === undefined) {
+        return '';
+      }
+      return String(value);
     })
-    .join("");
+    .join('');
 
-  // Step 2: Concatenate the timestamp field
-  const stringToSign = `${propertyValues}${eventTimestamp}${wompiEventSecret}`;
-
+  // Step 2 & 3: Concatenate timestamp and secret
+  const stringToSign = `${concatenatedValues}${eventTimestamp}${wompiEventSecret}`;
+  
   // Step 4: Use SHA256 to generate the checksum
   const computedChecksum = crypto
     .createHash("sha256")
@@ -84,6 +85,11 @@ export const wompiWebhook = https.onRequest(async (request, response) => {
       received: receivedChecksum,
       computed: computedChecksum,
       stringToSign: stringToSign,
+      details: {
+        concatenatedValues,
+        eventTimestamp,
+        wompiEventSecret: '***' // Do not log the secret
+      }
     });
     response.status(403).json({ error: "Invalid checksum." });
     return;
