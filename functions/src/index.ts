@@ -2,7 +2,7 @@
 import { https, logger } from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
-import type { Request, Response } from "express";
+import { Request, Response } from "express";
 
 // Initialize Firebase Admin SDK (idempotent)
 if (admin.apps.length === 0) {
@@ -17,6 +17,7 @@ const db = admin.firestore();
 function generateRegistrationCode(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const digits = "0123456789";
+  // 4 letters + 2 digits, then shuffle
   let code = "";
   for (let i = 0; i < 4; i++) code += letters.charAt(Math.floor(Math.random() * letters.length));
   for (let i = 0; i < 2; i++) code += digits.charAt(Math.floor(Math.random() * digits.length));
@@ -25,26 +26,23 @@ function generateRegistrationCode(): string {
 
 /**
  * Safely resolves a dotted path from an object and returns a string.
- * Missing values result in an empty string, which is crucial for Wompi's checksum.
+ * Missing values -> empty string (this is important for Wompi checksum exactness).
  */
 function getByPath(obj: any, path: string): string {
   if (!path) return "";
   const parts = path.split('.');
-  let current = obj;
-  for (const part of parts) {
-    if (current && Object.prototype.hasOwnProperty.call(current, part)) {
-      current = current[part];
+  let cur = obj;
+  for (const p of parts) {
+    if (cur && Object.prototype.hasOwnProperty.call(cur, p)) {
+      cur = cur[p];
     } else {
-      return ""; // Path does not exist
+      return "";
     }
   }
-  if (current === null || current === undefined) return ""; // Explicitly handle null/undefined
-  return String(current);
+  if (cur === null || cur === undefined) return "";
+  return String(cur);
 }
 
-/**
- * Computes a SHA-256 hash and returns it in hexadecimal format.
- */
 function computeSha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
@@ -60,10 +58,13 @@ export const wompiWebhook = https.onRequest(async (req: Request, res: Response) 
     const event = req.body || {};
     const signature = event.signature || {};
 
-    const receivedChecksum = (signature.checksum || '').trim();
+    // Prefer header checksum; fallback to body.signature.checksum
+    const headerChecksum = (req.headers['x-event-checksum'] as string) || null;
+    const bodyChecksum = typeof signature.checksum === 'string' ? signature.checksum : null;
+    const received = (headerChecksum || bodyChecksum || '').trim();
 
-    if (!receivedChecksum) {
-      logger.warn('Request body missing Wompi signature.checksum.');
+    if (!received) {
+      logger.warn('Missing checksum in header and body.signature.checksum.');
       return res.status(400).json({ error: 'Missing signature information.' });
     }
 
@@ -71,26 +72,24 @@ export const wompiWebhook = https.onRequest(async (req: Request, res: Response) 
     const dataRoot = event.data || {};
 
     const valuesConcat = props.map(p => getByPath(dataRoot, p)).join('');
-    
-    // Timestamp from the top-level of the event, as per Wompi's documentation
-    const timestamp = event.timestamp || '';
 
+    const timestamp = event.timestamp || '';
     const stringToSign = `${valuesConcat}${timestamp}${WOMPI_EVENT_SECRET}`;
 
-    const computedChecksum = computeSha256Hex(stringToSign);
-    
-    if (computedChecksum.toLowerCase() !== receivedChecksum.toLowerCase()) {
+    const computed = computeSha256Hex(stringToSign);
+
+    if (computed.toLowerCase() !== received.toLowerCase()) {
       logger.warn('Invalid checksum.', {
         details: {
-          received: receivedChecksum,
-          computed: computedChecksum,
-          stringToSignUsed: stringToSign.replace(WOMPI_EVENT_SECRET, '***SECRET***'), // Avoid logging the secret
+            received: received,
+            computed: computed,
+            stringToSignUsed: stringToSign.replace(WOMPI_EVENT_SECRET, '***SECRET***'),
         }
       });
       return res.status(403).json({ error: 'Invalid checksum.' });
     }
 
-    // Checksum is valid, proceed with business logic
+    // Checksum valid -> handle event
     logger.info('Checksum verified. Processing event.');
 
     const transaction = event.data?.transaction;
@@ -106,7 +105,7 @@ export const wompiWebhook = https.onRequest(async (req: Request, res: Response) 
       return res.status(400).json({ error: 'Transaction reference is missing.' });
     }
 
-    const paymentRef = db.collection("payment_codes").doc(String(reference));
+    const paymentRef = db.collection('payment_codes').doc(String(reference));
 
     if (String(status).toUpperCase() === 'APPROVED') {
       const registrationCode = generateRegistrationCode();
