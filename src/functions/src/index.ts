@@ -25,108 +25,101 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
-// Helper function to safely get nested properties from an object path string like "transaction.id"
-const getNestedValue = (obj: any, path: string): string => {
-    const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    if (value === null || value === undefined) {
-        return '';
-    }
-    return String(value);
-};
-
-
 /**
  * Public Cloud Function to receive webhook events from Wompi.
  * It verifies the request signature to ensure it comes from Wompi.
  */
 export const wompiWebhook = functions
-  .region("us-central1") // Specify region if not default
+  .region("us-central1")
   .runWith({
-    // Make secrets available to the function
     secrets: ["WOMPI_EVENT_SECRET"],
   })
   .https.onRequest(async (request, response) => {
-    const wompiEventSecret = process.env.WOMPI_EVENT_SECRET;
-    if (!wompiEventSecret) {
-        functions.logger.error("WOMPI_EVENT_SECRET is not set.");
-        response.status(500).json({ error: "Server configuration error." });
-        return;
-    }
+    try {
+      const event = request.body || {};
+      const signature = event.signature || {};
+      
+      const receivedChecksum = signature.checksum || '';
 
-    // --- Signature Verification Logic (Wompi Event Webhook) ---
-    const receivedChecksum = request.body.signature?.checksum;
-    const eventProperties = request.body.signature?.properties;
-    const eventTimestamp = request.body.timestamp;
-
-
-    if (!receivedChecksum || !Array.isArray(eventProperties) || !eventTimestamp) {
-        functions.logger.warn("Request body missing Wompi signature checksum, properties, or timestamp.");
+      if (!receivedChecksum) {
+        functions.logger.warn("Request body missing Wompi signature checksum.");
         response.status(400).json({ error: "Missing signature information." });
         return;
-    }
-    
-    // Step 1: Concatenate the values of the event data properties
-    const propertyValues = eventProperties
-        .map((prop: string) => getNestedValue(request.body.data, prop))
-        .join('');
-    
-    // Step 2 & 3: Concatenate timestamp and secret
-    const stringToSign = `${propertyValues}${eventTimestamp}${wompiEventSecret}`;
+      }
+      
+      const properties = Array.isArray(signature.properties) ? signature.properties : [];
+      const dataRoot = event.data || {};
 
-    // Step 4: Use SHA256 to generate the checksum
-    const computedChecksum = crypto.createHash('sha256').update(stringToSign).digest('hex');
+      const propertyValues = properties.map((path: string) => {
+        const parts = path.split('.');
+        let value: any = dataRoot;
+        for (const part of parts) {
+            if (value && Object.prototype.hasOwnProperty.call(value, part)) {
+                value = value[part];
+            } else {
+                value = '';
+                break;
+            }
+        }
+        return (value === null || value === undefined) ? '' : String(value);
+      }).join('');
 
-    if (computedChecksum !== receivedChecksum) {
+      const timestamp = event.timestamp || '';
+      const wompiEventSecret = process.env.WOMPI_EVENT_SECRET || '';
+      
+      const stringToSign = `${propertyValues}${timestamp}${wompiEventSecret}`;
+      
+      const computedChecksum = crypto.createHash('sha256').update(stringToSign).digest('hex');
+
+      if (computedChecksum.toLowerCase() !== receivedChecksum.toLowerCase()) {
         functions.logger.warn("Invalid checksum.", {
-            received: receivedChecksum,
-            computed: computedChecksum,
-            stringToSign: stringToSign,
-            propertyValues: eventProperties.map((prop: string) => ({ [prop]: getNestedValue(request.body.data, prop) }))
+            details: {
+                stringToSign: stringToSign, // Be careful logging this if secret is sensitive
+                computed: computedChecksum,
+                received: receivedChecksum,
+            }
         });
         response.status(403).json({ error: "Invalid checksum." });
         return;
-    }
+      }
 
-    // --- Signature is valid, proceed with logic ---
-    functions.logger.info("Checksum verified. Processing Wompi event.");
+      // --- Signature is valid, proceed with logic ---
+      functions.logger.info("Checksum verified. Processing Wompi event.");
 
-    const event = request.body.data;
-    const transaction = event?.transaction;
-    const reference = transaction?.reference;
-    const status = transaction?.status; // e.g., 'APPROVED', 'DECLINED'
+      const transaction = event.data?.transaction;
+      const reference = transaction?.reference;
+      const status = transaction?.status;
 
-    if (!reference) {
-        functions.logger.error("Transaction is missing a reference.", transaction);
-        response.status(400).json({ error: "Transaction reference is missing." });
-        return;
-    }
+      if (!reference) {
+          functions.logger.error("Transaction is missing a reference.", transaction);
+          response.status(400).json({ error: "Transaction reference is missing." });
+          return;
+      }
 
-    const paymentRef = db.collection("payment_codes").doc(reference);
+      const paymentRef = db.collection("payment_codes").doc(reference);
 
-    try {
-        if (status === "APPROVED") {
-            const registrationCode = generateRegistrationCode();
-            await paymentRef.set({
-                status: "APPROVED",
-                registrationCode: registrationCode,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                transactionId: transaction.id,
-                used: false,
-            });
-            functions.logger.info(`Payment ${reference} approved. Generated code: ${registrationCode}`);
-        } else {
-            await paymentRef.set({
-                status: status, // Could be 'DECLINED', 'VOIDED', etc.
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                transactionId: transaction.id,
-            }, { merge: true }); // Merge to not overwrite a potential existing document
-            functions.logger.info(`Payment ${reference} has status: ${status}`);
-        }
+      if (status === "APPROVED") {
+          const registrationCode = generateRegistrationCode();
+          await paymentRef.set({
+              status: "APPROVED",
+              registrationCode: registrationCode,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              transactionId: transaction.id,
+              used: false,
+          });
+          functions.logger.info(`Payment ${reference} approved. Generated code: ${registrationCode}`);
+      } else {
+          await paymentRef.set({
+              status: status,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              transactionId: transaction.id,
+          }, { merge: true });
+          functions.logger.info(`Payment ${reference} has status: ${status}`);
+      }
 
-        // Respond to Wompi to acknowledge receipt of the event.
-        response.status(200).json({ received: true });
-    } catch (dbError) {
-        functions.logger.error(`Error writing to Firestore for reference ${reference}:`, dbError);
-        response.status(500).json({ error: "Internal server error while processing payment." });
+      response.status(200).json({ received: true });
+    } catch (err) {
+        functions.logger.error("Error verifying Wompi webhook", err);
+        response.status(500).json({ error: "Internal server error" });
     }
 });
