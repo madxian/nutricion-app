@@ -73,16 +73,29 @@ export const wompiWebhook = https.onRequest(async (req: Request, res: Response) 
 
     const valuesConcat = props.map(p => getByPath(dataRoot, p)).join('');
 
-    const timestamp = event.timestamp || '';
+    // timestamp: prefer signature.timestamp, fallback to event.sent_at -> unix
+    let timestamp: string | number = '';
+    if (signature.timestamp) {
+      timestamp = signature.timestamp;
+    } else if (event.sent_at) {
+      const t = Math.floor(new Date(String(event.sent_at)).getTime() / 1000);
+      timestamp = Number.isNaN(t) ? '' : t;
+    } else if (event.timestamp) {
+        timestamp = Number(event.timestamp);
+    } else {
+        timestamp = '';
+    }
+
     const stringToSign = `${valuesConcat}${timestamp}${WOMPI_EVENT_SECRET}`;
 
     const computed = computeSha256Hex(stringToSign);
 
     if (computed.toLowerCase() !== received.toLowerCase()) {
       logger.warn('Invalid checksum.', {
+        received,
+        computed,
+        // For security, never log the `stringToSign` or the secret itself in production
         details: {
-            received: received,
-            computed: computed,
             stringToSignUsed: stringToSign.replace(WOMPI_EVENT_SECRET, '***SECRET***'),
         }
       });
