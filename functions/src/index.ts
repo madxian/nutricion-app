@@ -1,4 +1,3 @@
-
 import { https, logger } from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
@@ -47,7 +46,7 @@ function computeSha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-export const wompiWebhook = https.onRequest(async (req: Request, res: Response) => {
+export const wompiWebhook = https.onRequest(async (req, res) => {
   try {
     const WOMPI_EVENT_SECRET = process.env.WOMPI_EVENT_SECRET || '';
     if (!WOMPI_EVENT_SECRET) {
