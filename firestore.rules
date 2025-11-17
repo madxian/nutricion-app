@@ -1,88 +1,89 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Manages access to user-specific payment codes.
-     * @path /payment_codes/{codeId}
-     * @allow get: Anyone can read a code to validate it during registration.
-     * @allow update: An authenticated user can mark a code as 'used' only if it wasn't used before.
-     * @deny create, delete, list: Codes are only created by the backend; cannot be listed or deleted by clients.
-     * @principle Public read for validation, restricted write for consumption.
-     */
-    match /payment_codes/{codeId} {
+    // ============================
+    // USERS
+    // ============================
+    match /users/{userId} {
       function isSignedIn() {
         return request.auth != null;
       }
 
-      // Allow anyone to read a specific code document (e.g., to check if it exists).
-      allow get: if true;
+      function isOwner() {
+        return isSignedIn() && request.auth.uid == userId;
+      }
 
-      // Prevent listing all codes.
+      allow get: if isOwner();
       allow list: if false;
-
-      // Allow an authenticated user to mark a code as used, but only once.
-      // This rule allows adding 'used', 'usedBy', and 'usedAt' fields.
-      allow update: if isSignedIn()
-                    && request.auth.uid == request.resource.data.usedBy
-                    && request.resource.data.used == true
-                    && resource.data.used == false;
-
-      // Nobody can create or delete codes from the client.
-      allow create, delete: if false;
+      allow create: if isOwner();
+      allow update: if isOwner();
+      allow delete: if false; // Users shouldn't delete their own accounts from the client
     }
 
-    /**
-     * @description Manages access to the payment references index.
-     * @path /payment_references/{referenceId}
-     * @deny all: This collection is for backend-use only and should not be client-accessible.
-     */
-    match /payment_references/{referenceId} {
-      allow read, write: if false;
-    }
-
-    /**
-     * @description Manages access to user profile documents.
-     * @path /users/{userId}
-     * @allow (read, update, create): Only the authenticated user can manage their own profile.
-     * @deny delete: Users cannot delete their own profiles from the client.
-     * @principle Enforces document ownership for user data.
-     */
-    match /users/{userId} {
-      allow read, update, create: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false; // To prevent users from deleting their own profile.
-    }
-    
-    /**
-     * @description Manages access to meal plan documents.
-     * @path /users/{userId}/meal_plans/{mealPlanId}
-     * @allow (read, write): Only the owner of the profile can manage their meal plans.
-     */
+    // ============================
+    // MEAL PLANS INSIDE USERS
+    // ============================
     match /users/{userId}/meal_plans/{mealPlanId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow read, write: if isOwner();
     }
 
-    /**
-     * @description Manages access to public recipe documents.
-     * @path /recipes/{recipeId}
-     * @allow read: All recipes are publicly readable.
-     * @deny write: No client-side writes allowed to the main recipe collection.
-     */
+    // ============================
+    // RECIPES - PUBLIC READ
+    // ============================
     match /recipes/{recipeId} {
       allow get, list: if true;
-      allow write: if false;
+      allow create, update, delete: if false; // Managed by admin/backend
     }
 
-    /**
-     * @description Manages access to public weight goal documents.
-     * @path /weight_goals/{weightGoalId}
-     * @allow read: All weight goals are publicly readable.
-     * @deny write: No client-side writes allowed.
-     */
+    // ============================
+    // WEIGHT GOALS - PUBLIC READ ONLY
+    // ============================
     match /weight_goals/{weightGoalId} {
       allow get, list: if true;
-      allow write: if false;
+      allow create, update, delete: if false;
+    }
+
+    // ============================
+    // PAYMENT CODES (registro con código)
+    // ============================
+    match /payment_codes/{paymentCodeId} {
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Check if the code was not used before the transaction
+      function wasNotUsedBefore() {
+        return resource.data.used == false;
+      }
+      
+      // Check if the update is only to mark the code as used by the current user
+      function isMarkingAsUsed() {
+        let isUpdatingCorrectFields = request.resource.data.diff(resource.data).affectedKeys()
+                                      .hasOnly(['used', 'usedBy', 'usedAt']);
+        return isUpdatingCorrectFields &&
+               request.resource.data.used == true &&
+               request.resource.data.usedBy == request.auth.uid;
+      }
+
+      allow get: if true; // Anyone can check if a code exists
+      allow list, create, delete: if false; // Codes are managed by the backend
+      allow update: if isSignedIn() && wasNotUsedBefore() && isMarkingAsUsed();
+    }
+    
+    // ============================
+    // PAYMENT REFERENCES INDEX - (created by webhook)
+    // ============================
+    match /payment_references/{referenceId} {
+        // This collection is for backend-use only and should not be client-accessible.
+        allow read, write: if false;
     }
   }
 }
