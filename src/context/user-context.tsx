@@ -40,7 +40,7 @@ interface UserContextType {
     isLoading: boolean;
     isLoggedIn: boolean;
     logout: () => void;
-    saveUserData: (uid: string, data: Partial<Omit<UserData, 'goal' | 'detailsLastUpdatedAt' | 'email'>>) => Promise<void>;
+    saveUserData: (uid: string, data: Partial<UserData>) => Promise<void>;
     saveGoal: (goal: Goal, setTimestamp: boolean) => Promise<void>;
     username: string | null;
 }
@@ -117,7 +117,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
     }, [isLoading, isLoggedIn, user, pathname, router]);
 
-    const value = {
+    const value: UserContextType = {
         user,
         isLoading,
         isLoggedIn,
