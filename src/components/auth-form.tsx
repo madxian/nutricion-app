@@ -126,30 +126,33 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     setIsLoading(true);
     try {
       const functions = getFunctions(firebaseApp);
-      const registerWithCode = httpsCallable(functions, 'registerWithCode');
+      const callRegisterWithCode = httpsCallable(functions, 'registerWithCode');
       
-      const result: any = await registerWithCode({
+      const result: any = await callRegisterWithCode({
         email: values.email,
         password: values.password,
         registrationCode: values.registrationCode,
       });
 
-      const customToken = result.data.customToken;
-      if (customToken) {
-        await signInWithCustomToken(auth, customToken);
+      const token = result.data.customToken;
+
+      if (token) {
+        await signInWithCustomToken(auth, token);
         toast({
           title: '¡Cuenta Creada!',
           description: 'Tu cuenta ha sido creada con éxito. Ahora completa tus datos.',
         });
+        // The user provider will handle the redirect to /details
       } else {
-        throw new Error('No se recibió el token de autenticación.');
+        throw new Error('No se recibió el token de autenticación del servidor.');
       }
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
         variant: 'destructive',
         title: 'Error en el Registro',
-        description: error.message || 'Ocurrió un error inesperado.',
+        // The callable function now returns specific error messages
+        description: error.message || 'Ocurrió un error inesperado al registrar la cuenta.',
       });
     } finally {
       setIsLoading(false);

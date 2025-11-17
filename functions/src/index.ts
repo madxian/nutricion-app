@@ -117,3 +117,117 @@ export const wompiWebhook = https.onRequest((req, res) => {
         }
     })();
 });
+
+/**
+ * Callable function: registerWithCode
+ *
+ * Input: { email: string, password: string, registrationCode: string }
+ * Flow:
+ *  - normalize registrationCode
+ *  - check payment_codes/{CODE} exists, status == 'APPROVED', used != true
+ *  - create user via Admin SDK
+ *  - runTransaction:
+ *      - re-check code unused
+ *      - mark code used (used, usedBy, usedAt)
+ *      - create users/{uid} doc
+ *  - on success: createCustomToken(uid) and return it
+ *  - on transaction failure: delete created user and return an error
+ */
+export const registerWithCode = https.onCall(async (data, context) => {
+  // Basic validation
+  const email = ((data?.email || '') as string).toString().trim().toLowerCase();
+  const password = ((data?.password || '') as string).toString();
+  const rawCode = ((data?.registrationCode || '') as string).toString();
+
+  // Sanitizar código: normalizar unicode y mantener solo A-Z0-9, uppercase
+  const registrationCode = rawCode.normalize('NFKC').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  if (!email || !password || !registrationCode) {
+    throw new https.HttpsError('invalid-argument', 'Email, password y registrationCode son requeridos.');
+  }
+
+  const codeRef = db.collection('payment_codes').doc(registrationCode);
+
+  // 1) lectura previa para dar mensajes claros
+  const codeSnap = await codeRef.get();
+  if (!codeSnap.exists) {
+    throw new https.HttpsError('not-found', 'Código no encontrado.');
+  }
+  const codeData = codeSnap.data() as any;
+  if (codeData?.used === true) {
+    throw new https.HttpsError('already-exists', 'Código ya fue usado.');
+  }
+  if (String(codeData?.status).toUpperCase() !== 'APPROVED') {
+    throw new https.HttpsError('failed-precondition', `Código no aprobado (status: ${codeData?.status}).`);
+  }
+
+  // 2) Crear usuario en Auth (Admin SDK)
+  let userRecord: admin.auth.UserRecord;
+  try {
+    userRecord = await admin.auth().createUser({
+      email,
+      password,
+      emailVerified: false,
+    });
+    logger.info('User created (admin)', { uid: userRecord.uid, email });
+  } catch (err: any) {
+    logger.error('Failed to create user via admin.auth().createUser', { err });
+    if (err?.code === 'auth/email-already-exists') {
+      throw new https.HttpsError('already-exists', 'El correo ya está registrado.');
+    }
+    throw new https.HttpsError('internal', 'No se pudo crear el usuario.');
+  }
+
+  // 3) Transaction: re-check code and mark used + create users/{uid}
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(codeRef);
+      if (!snap.exists) {
+        throw new https.HttpsError('not-found', 'Código no encontrado (transacción).');
+      }
+      const current = snap.data() as any;
+      if (current?.used === true) {
+        throw new https.HttpsError('already-exists', 'Código ya fue utilizado (concurrency).');
+      }
+
+      // marcar como usado
+      tx.update(codeRef, {
+        used: true,
+        usedBy: userRecord.uid,
+        usedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // crear user doc
+      const userDocRef = db.collection('users').doc(userRecord.uid);
+      tx.set(userDocRef, {
+        email,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+  } catch (txErr: any) {
+    logger.error('Transaction failed; cleaning up created user', { txErr, uid: userRecord.uid });
+    // limpiar: borrar el usuario creado para evitar huérfanos
+    try {
+      await admin.auth().deleteUser(userRecord.uid);
+      logger.info('Deleted created user after tx failure', { uid: userRecord.uid });
+    } catch (cleanupErr) {
+      logger.error('Failed to delete user after tx failure', { cleanupErr, uid: userRecord.uid });
+    }
+
+    // Si txErr es HttpsError, propágalo (mantenemos el mensaje para el cliente)
+    if (txErr instanceof https.HttpsError) {
+      throw txErr;
+    }
+    throw new https.HttpsError('aborted', 'No se pudo consumir el código. Intenta de nuevo.');
+  }
+
+  // 4) Generar custom token y devolverlo
+  try {
+    const customToken = await admin.auth().createCustomToken(userRecord.uid);
+    return { customToken };
+  } catch (err: any) {
+    logger.error('Failed to create customToken', { err, uid: userRecord.uid });
+    // Nota: si esto falla, tienes un usuario creado y marcado como used; decide política
+    throw new https.HttpsError('internal', 'No se pudo generar el token de autenticación.');
+  }
+});
