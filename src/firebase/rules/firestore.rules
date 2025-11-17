@@ -1,0 +1,89 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================
+    // USERS
+    // ============================
+    match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner() {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      allow get: if isOwner();
+      allow list: if false;
+      allow create: if isOwner();
+      allow update: if isOwner();
+      allow delete: if false; // Users shouldn't delete their own accounts from the client
+    }
+
+    // ============================
+    // MEAL PLANS INSIDE USERS
+    // ============================
+    match /users/{userId}/meal_plans/{mealPlanId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow read, write: if isOwner();
+    }
+
+    // ============================
+    // RECIPES - PUBLIC READ
+    // ============================
+    match /recipes/{recipeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // Managed by admin/backend
+    }
+
+    // ============================
+    // WEIGHT GOALS - PUBLIC READ ONLY
+    // ============================
+    match /weight_goals/{weightGoalId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    // ============================
+    // PAYMENT CODES (registro con código)
+    // ============================
+    match /payment_codes/{paymentCodeId} {
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Check if the code was not used before the transaction
+      function wasNotUsedBefore() {
+        return resource.data.used == false;
+      }
+      
+      // Check if the update is only to mark the code as used by the current user
+      function isMarkingAsUsed() {
+        let isUpdatingCorrectFields = request.resource.data.diff(resource.data).affectedKeys()
+                                      .hasOnly(['used', 'usedBy', 'usedAt']);
+        return isUpdatingCorrectFields &&
+               request.resource.data.used == true &&
+               request.resource.data.usedBy == request.auth.uid;
+      }
+
+      allow get: if true; // Anyone can check if a code exists
+      allow list, create, delete: if false; // Codes are managed by the backend
+      allow update: if isSignedIn() && wasNotUsedBefore() && isMarkingAsUsed();
+    }
+    
+    // ============================
+    // PAYMENT REFERENCES INDEX - (created by webhook)
+    // ============================
+    match /payment_references/{referenceId} {
+        // This collection is for backend-use only and should not be client-accessible.
+        allow read, write: if false;
+    }
+  }
+}
