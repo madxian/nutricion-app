@@ -1,11 +1,10 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFirebase } from '@/firebase/provider';
-import { doc } from 'firebase/firestore';
-import { useDoc } from '@/firebase/firestore/use-doc';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,15 +21,50 @@ export default function StatusPage() {
   const { firestore } = useFirebase();
 
   const reference = searchParams.get('reference');
-
-  const docRef = reference ? doc(firestore, 'payment_codes', reference) : null;
-  const { data: paymentData, isLoading } = useDoc<PaymentStatus>(docRef);
+  const [paymentData, setPaymentData] = useState<PaymentStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!reference) {
       router.replace('/');
+      return;
     }
-  }, [reference, router]);
+
+    const findPaymentByReference = async () => {
+      setIsLoading(true);
+      const paymentQuery = query(
+        collection(firestore, 'payment_codes'),
+        where('reference', '==', reference),
+        limit(1)
+      );
+
+      const querySnapshot = await getDocs(paymentQuery);
+      
+      if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0];
+        setPaymentData(docSnap.data() as PaymentStatus);
+      }
+      setIsLoading(false);
+    };
+
+    findPaymentByReference();
+
+    // Poll for the status
+    const interval = setInterval(() => {
+        findPaymentByReference();
+    }, 5000); // Check every 5 seconds
+
+    // Stop polling after 1 minute
+    const timeout = setTimeout(() => {
+        clearInterval(interval);
+    }, 60000);
+
+    return () => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+    };
+
+  }, [reference, firestore, router]);
   
   useEffect(() => {
     if (paymentData?.status === 'APPROVED' && paymentData.registrationCode) {
@@ -47,7 +81,7 @@ export default function StatusPage() {
   }
 
   const renderContent = () => {
-    if (isLoading || !paymentData || paymentData.status === 'PENDING') {
+    if (isLoading || !paymentData) {
       return (
         <div className="flex flex-col items-center justify-center text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -84,7 +118,14 @@ export default function StatusPage() {
       );
     }
     
-    return null;
+    // Default to pending if status is not APPROVED or DECLINED yet
+    return (
+        <div className="flex flex-col items-center justify-center text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg font-medium">Pago pendiente de confirmación...</p>
+          <p className="text-muted-foreground">Estamos esperando la confirmación de Wompi. Esto puede tomar un momento.</p>
+        </div>
+      );
   };
 
   return (

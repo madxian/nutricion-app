@@ -12,6 +12,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { getApp } from 'firebase/app';
 
+
 /**
  * Guarda/actualiza datos del usuario en Firestore.
  * Usa Partial<UserData> para permitir enviar solo los campos que quieras actualizar.
@@ -49,7 +50,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
     const { user, isLoading, isLoggedIn } = useFirebaseAuthUser();
-    const { firestore, auth } = useFirebase();
+    const { auth } = useFirebase();
     const router = useRouter();
     const pathname = usePathname();
 
@@ -65,27 +66,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const saveGoal = useCallback(async (goal: Goal, setTimestamp: boolean) => {
         const currentUser = auth.currentUser;
-        if (currentUser?.uid && firestore) {
-            const userRef = doc(firestore, 'users', currentUser.uid);
+        if (currentUser?.uid) {
             const dataToUpdate: Partial<UserData> = { goal };
             if (setTimestamp) {
                 dataToUpdate.detailsLastUpdatedAt = new Date().toISOString();
             }
-
-            return setDoc(userRef, dataToUpdate, { merge: true }).catch((error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: userRef.path,
-                    operation: 'update',
-                    requestResourceData: dataToUpdate,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw error;
-            });
+            return saveUserData(currentUser.uid, dataToUpdate);
         } else {
             console.error("User not logged in or firestore not available");
             throw new Error("User not logged in or firestore not available");
         }
-    }, [auth, firestore]);
+    }, [auth]);
 
     useEffect(() => {
         if (isLoading) {

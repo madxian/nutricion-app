@@ -23,8 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser } from '@/context/user-context';
-import { useAuth, useFirebase } from '@/firebase/provider';
+import { useUser, saveUserData } from '@/context/user-context';
+import { useFirebase } from '@/firebase/provider';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
@@ -49,7 +49,6 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { auth, firestore } = useFirebase();
-  const { saveUserData } = useUser();
   
   const registrationCode = searchParams.get('code');
   const initialTab = registrationCode ? 'signup' : defaultTab;

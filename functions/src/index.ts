@@ -73,20 +73,35 @@ export const wompiWebhook = https.onRequest((req, res) => {
                 return;
             }
 
-            const paymentRef = db.collection("payment_codes").doc(String(tx.reference));
-
             if (String(tx.status).toUpperCase() === 'APPROVED') {
                 const registrationCode = generateRegistrationCode();
-                await paymentRef.set({
+
+                // Guardamos el doc bajo payment_codes/{registrationCode}
+                const codeDocRef = db.collection("payment_codes").doc(String(registrationCode));
+                await codeDocRef.set({
                     status: 'APPROVED',
                     registrationCode,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     transactionId: tx.id || null,
+                    reference: tx.reference || null, // guardar la reference por si la necesitas
                     used: false,
                 });
+
+                // Opcional: guardar un índice para buscar por reference rápidamente
+                if (tx.reference) {
+                    await db.collection("payment_references").doc(String(tx.reference)).set({
+                        registrationCode,
+                        transactionId: tx.id || null,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                }
+
                 logger.info(`Payment ${tx.reference} approved. Generated code: ${registrationCode}`);
             } else {
-                await paymentRef.set({
+                // Si no fue aprobado, preferimos crear un doc por reference (no por code)
+                // para que puedas ver el estado de la transacción
+                const refDoc = db.collection("payment_references").doc(String(tx.reference));
+                await refDoc.set({
                     status: tx.status || 'UNKNOWN',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     transactionId: tx.id || null,

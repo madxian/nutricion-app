@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -88,6 +89,34 @@ service cloud.firestore {
         allow create: if false;
         allow update: if false;
         allow delete: if false;
+    }
+
+    /**
+      * @description Manages access to payment codes.
+      * @path /payment_codes/{paymentCodeId}
+      * @allow get: Anyone can read a specific code to validate it.
+      * @allow update: Only authenticated users can update a code (to mark it as 'used').
+      * @deny create, delete, list: No one can create/delete codes from the client, or list all codes.
+      * @principle Public read for validation, restricted write for consumption.
+      */
+    match /payment_codes/{paymentCodeId} {
+       function isSignedIn() {
+        return request.auth != null;
+      }
+      
+      allow get: if true;
+      allow list: if false;
+      allow update: if isSignedIn();
+      allow create, delete: if false;
+    }
+
+    /**
+      * @description Manages access to payment references index.
+      * @path /payment_references/{referenceId}
+      * @deny all: This collection is for backend-use only and should not be client-accessible.
+      */
+    match /payment_references/{referenceId} {
+      allow read, write: if false;
     }
   }
 }
