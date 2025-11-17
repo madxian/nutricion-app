@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, ReactNode, useCallback, useEffect } from 'react';
@@ -5,10 +6,34 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { UserData, Goal } from '@/lib/types';
 import { useUser as useFirebaseAuthUser } from '@/firebase/auth/use-user';
 import { useFirebase } from '@/firebase/provider';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getFirestore } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { getApp } from 'firebase/app';
+
+/**
+ * Guarda/actualiza datos del usuario en Firestore.
+ * Usa Partial<UserData> para permitir enviar solo los campos que quieras actualizar.
+ */
+export const saveUserData = async (uid: string, data: Partial<UserData>): Promise<void> => {
+  if (!uid) throw new Error('saveUserData: uid required');
+  const db = getFirestore(getApp());
+  const userRef = doc(db, 'users', uid);
+  
+  try {
+    await setDoc(userRef, data, { merge: true });
+  } catch (error) {
+    const permissionError = new FirestorePermissionError({
+      path: userRef.path,
+      operation: 'write',
+      requestResourceData: data,
+    });
+    errorEmitter.emit('permission-error', permissionError);
+    throw error;
+  }
+};
+
 
 interface UserContextType {
     user: UserData | null;
@@ -37,26 +62,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
             router.push('/');
         }
     }, [auth, router]);
-
-    const saveUserData = useCallback(async (uid: string, data: Partial<Omit<UserData, 'goal' | 'detailsLastUpdatedAt'>>) => {
-        if (firestore) {
-            const userRef = doc(firestore, 'users', uid);
-            const dataToSave: Partial<UserData> = { ...data };
-
-            return setDoc(userRef, dataToSave, { merge: true }).catch((error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: userRef.path,
-                    operation: 'write',
-                    requestResourceData: dataToSave,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw error;
-            });
-        } else {
-            console.error("Firestore not available");
-            throw new Error("Firestore not available");
-        }
-    }, [firestore]);
 
     const saveGoal = useCallback(async (goal: Goal, setTimestamp: boolean) => {
         const currentUser = auth.currentUser;
