@@ -4,18 +4,21 @@ import React, { DependencyList, createContext, useContext, ReactNode, useMemo } 
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth } from 'firebase/auth';
+import { Functions } from 'firebase/functions';
 
 interface FirebaseProviderProps {
   children: ReactNode;
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
+  functions: Functions;
 }
 
 export interface FirebaseContextState {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
+  functions: Functions;
 }
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
@@ -25,10 +28,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firebaseApp,
   firestore,
   auth,
+  functions,
 }) => {
   const contextValue = useMemo(() => {
-    return { firebaseApp, firestore, auth };
-  }, [firebaseApp, firestore, auth]);
+    return { firebaseApp, firestore, auth, functions };
+  }, [firebaseApp, firestore, auth, functions]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -59,6 +63,11 @@ export const useFirebaseApp = (): FirebaseApp => {
   const { firebaseApp } = useFirebase();
   return firebaseApp;
 };
+
+export const useFunctions = (): Functions => {
+    const { functions } = useFirebase();
+    return functions;
+}
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 

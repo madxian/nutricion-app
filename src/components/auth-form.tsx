@@ -21,11 +21,10 @@ import { useLanguage } from '@/context/language-context';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, saveUserData } from '@/context/user-context';
 import { useFirebase } from '@/firebase/provider';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import {
@@ -48,7 +47,7 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { auth, firestore } = useFirebase();
+  const { auth, firebaseApp } = useFirebase();
   
   const registrationCode = searchParams.get('code');
   const initialTab = registrationCode ? 'signup' : defaultTab;
@@ -58,7 +57,6 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     password: z.string().min(1, t('auth.password_required')),
   });
 
-  // We need to pass `t` to the function to get the latest translations
   const getSignupSchema = (t: (key: string) => string) => z.object({
     email: z.string().email(t('auth.email_invalid')).min(1, t('auth.email_required')),
     password: z.string().min(6, t('auth.password_min_length')),
@@ -97,7 +95,6 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     },
   });
 
-  // Effect to update form value if URL code changes
   useEffect(() => {
     if (registrationCode) {
       signupForm.setValue('registrationCode', registrationCode);
@@ -114,7 +111,6 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
         title: '¡Bienvenido de nuevo!',
         description: 'Has iniciado sesión correctamente.',
       });
-      // The provider will handle redirection
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -129,120 +125,31 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
   const onSignup = async (values: z.infer<ReturnType<typeof getSignupSchema>>) => {
     setIsLoading(true);
     try {
-      if (!firestore || !auth) throw new Error("Firebase services not available");
-  
-      // Normalize code (trim + uppercase optional)
-      const codeInput = (values.registrationCode || '').toString().trim();
-  
-      // Step 1: Verify the registration code in Firestore (doc id = registrationCode)
-      const codeRef = doc(firestore, 'payment_codes', codeInput);
-      const codeSnap = await getDoc(codeRef);
-  
-      // Debug: useful during testing — quita en producción si quieres
-      console.log('codeSnap.exists():', codeSnap.exists());
-      console.log('codeSnap.data():', codeSnap.data());
-  
-      if (!codeSnap.exists()) {
-        toast({
-          variant: 'destructive',
-          title: 'Código Inválido',
-          description: 'El código de registro no existe.'
-        });
-        setIsLoading(false);
-        return;
-      }
-  
-      const rawData = codeSnap.data() as Record<string, any>;
-  
-      // Normalize fields defensivamente
-      const used = (() => {
-        const v = rawData?.used;
-        // accept boolean true, string 'true', number 1
-        if (v === true) return true;
-        if (v === 'true') return true;
-        if (v === 1) return true;
-        return false;
-      })();
-  
-      const status = (rawData?.status || '').toString().trim().toUpperCase();
-  
-      if (used === true) {
-        toast({
-          variant: 'destructive',
-          title: 'Código ya utilizado',
-          description: 'Este código ya fue usado.'
-        });
-        setIsLoading(false);
-        return;
-      }
-  
-      if (status !== 'APPROVED') {
-        toast({
-          variant: 'destructive',
-          title: 'Código no aprobado',
-          description: `El código no está en estado válido (status: ${rawData?.status || 'desconocido'}).`
-        });
-        setIsLoading(false);
-        return;
-      }
-  
-      // Step 2: Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-  
-      // Ensure user's auth token is available for Firestore security rules (avoid race)
-      try {
-        // force token refresh — helps ensure request.auth is present in subsequent setDoc
-        await user.getIdToken(/* forceRefresh= */ true);
-      } catch (tokenErr) {
-        console.warn('Could not refresh ID token immediately, continuing anyway', tokenErr);
-        // not fatal — we'll still try the update
-      }
-  
-      // Step 3: Create user document in Firestore via context
-      if (user) {
-        await saveUserData(user.uid, {
-          email: values.email,
-        });
-  
-        // Step 4: Mark the registration code as used
-        // Use merge to avoid overwriting other fields
-        // IMPORTANT: we keep this client-side action only if your rules allow update for signed-in users.
-        // Alternatively, use the callable function approach (recommended) to mark as used server-side.
-        try {
-          await setDoc(codeRef, {
-            used: true,
-            usedBy: user.uid,
-            usedAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (updateErr: any) {
-          console.error('Error marking code as used:', updateErr);
-          // If permission denied, let the user know and suggest contacting support (or automatically call server)
-          if (updateErr?.code === 'permission-denied' || updateErr?.message?.includes('Missing or insufficient permissions')) {
-            toast({
-              variant: 'destructive',
-              title: 'Error de permisos al consumir el código',
-              description: 'No se pudo marcar el código como usado automáticamente. Contacta soporte.'
-            });
-            // Option: continue (user account created) or rollback — choose per tu política
-          } else {
-            throw updateErr;
-          }
-        }
-      }
-  
-      toast({
-        title: '¡Cuenta Creada!',
-        description: 'Tu cuenta ha sido creada con éxito. Ahora completa tus datos.',
+      const functions = getFunctions(firebaseApp);
+      const registerWithCode = httpsCallable(functions, 'registerWithCode');
+      
+      const result: any = await registerWithCode({
+        email: values.email,
+        password: values.password,
+        registrationCode: values.registrationCode,
       });
-  
-      // The provider will handle redirection to /details
+
+      const customToken = result.data.customToken;
+      if (customToken) {
+        await signInWithCustomToken(auth, customToken);
+        toast({
+          title: '¡Cuenta Creada!',
+          description: 'Tu cuenta ha sido creada con éxito. Ahora completa tus datos.',
+        });
+      } else {
+        throw new Error('No se recibió el token de autenticación.');
+      }
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
         variant: 'destructive',
         title: 'Error en el Registro',
-        description: error?.message || 'Ocurrió un error inesperado.'
+        description: error.message || 'Ocurrió un error inesperado.',
       });
     } finally {
       setIsLoading(false);
