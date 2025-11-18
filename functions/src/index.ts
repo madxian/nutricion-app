@@ -149,7 +149,6 @@ export const registerWithCode = https.onCall(async (data, context) => {
   if (String(codeData?.status).toUpperCase() !== 'APPROVED') {
     throw new https.HttpsError('failed-precondition', `Código no aprobado (status: ${codeData?.status}).`);
   }
-  const transactionId = codeData.transactionId; // Get transactionId
 
   // 2) Create user in Auth (Admin SDK)
   let userRecord: admin.auth.UserRecord;
@@ -196,10 +195,12 @@ export const registerWithCode = https.onCall(async (data, context) => {
 
       // Handle referral code if provided
       if (referralCode) {
+        // **FIX**: Get transactionId from the document read *inside* the transaction
+        const transactionId = current.transactionId;
         const referredUserRef = db.collection('referred_codes').doc(referralCode).collection('referred_users').doc(userRecord.uid);
         tx.set(referredUserRef, {
           email: email,
-          transactionId: transactionId,
+          transactionId: transactionId, // Use the ID from within the transaction
           registeredAt: admin.firestore.FieldValue.serverTimestamp()
         });
       }
