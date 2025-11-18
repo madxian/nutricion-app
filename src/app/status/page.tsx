@@ -12,8 +12,8 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface PaymentReference {
   registrationCode?: string;
-  transactionId: string;
-  status: 'APPROVED' | 'DECLINED' | 'PENDING' | 'ERROR' | 'UNKNOWN';
+  transactionId?: string;
+  status?: 'APPROVED' | 'DECLINED' | 'PENDING' | 'ERROR' | 'UNKNOWN';
 }
 
 export default function StatusPage() {
@@ -36,42 +36,48 @@ export default function StatusPage() {
     if (!firestore || !shouldPoll) return;
 
     const checkPayment = async () => {
-      const paymentDocRef = doc(firestore, 'payment_references', transactionId);
       try {
+        // Lee directamente el documento payment_references/{transactionId}
+        const paymentDocRef = doc(firestore, 'payment_references', transactionId);
         const docSnap = await getDoc(paymentDocRef);
 
-        if (docSnap.exists()) {
-          const paymentData = docSnap.data() as PaymentReference;
-
-          if (paymentData.status === 'APPROVED' && paymentData.registrationCode) {
-            setRegistrationCode(paymentData.registrationCode);
-            setStatus('success');
-            setShouldPoll(false);
-          } else if (paymentData.status !== 'PENDING' && paymentData.status !== 'APPROVED') {
-            setStatus('declined');
-            setErrorMessage(`Tu pago fue ${paymentData.status.toLowerCase()}. Por favor, intenta de nuevo o contacta a tu banco.`);
-            setShouldPoll(false);
-          }
-          // Si status es PENDING, seguimos polling
+        if (!docSnap.exists()) {
+          // No existe aún: seguir polling
+          return;
         }
+
+        const paymentData = docSnap.data() as PaymentReference;
+        const docStatus = (paymentData?.status || 'UNKNOWN').toUpperCase();
+
+        if (docStatus === 'APPROVED' && paymentData.registrationCode) {
+          setRegistrationCode(paymentData.registrationCode);
+          setStatus('success');
+          setShouldPoll(false);
+        } else if (docStatus !== 'PENDING' && docStatus !== 'APPROVED') {
+          setStatus('declined');
+          setErrorMessage(`Tu pago fue ${String(docStatus).toLowerCase()}. Por favor, intenta de nuevo o contacta a tu banco.`);
+          setShouldPoll(false);
+        }
+        // Si está PENDING → continuar polling
       } catch (err) {
-        console.error("Firestore getDoc error:", err);
+        console.error('Firestore getDoc error:', err);
         setStatus('error');
-        setErrorMessage("Hubo un error al verificar tu pago. Por favor, contacta a soporte.");
+        setErrorMessage('Hubo un error al verificar tu pago. Por favor, contacta a soporte.');
         setShouldPoll(false);
       }
     };
 
+    // Ejecutar de inmediato y luego poll cada 5s
     checkPayment();
     const interval = setInterval(checkPayment, 5000);
 
     const timeout = setTimeout(() => {
       if (shouldPoll) {
         setStatus('error');
-        setErrorMessage("No pudimos confirmar tu pago después de 10 minutos. Si el pago fue debitado, contacta a soporte con tu ID de transacción.");
+        setErrorMessage('No pudimos confirmar tu pago después de 10 minutos. Si el pago fue debitado, contacta a soporte con tu ID de transacción.');
         setShouldPoll(false);
       }
-    }, 600_000); // 10 min
+    }, 600_000); // 10 minutos
 
     return () => {
       clearInterval(interval);
