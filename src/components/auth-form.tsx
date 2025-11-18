@@ -126,33 +126,46 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     setIsLoading(true);
     try {
       const functions = getFunctions(firebaseApp);
-      const callRegisterWithCode = httpsCallable(functions, 'registerWithCode');
-      
+      const callRegisterWithCode = httpsCallable(functions, "registerWithCode");
+  
       const result: any = await callRegisterWithCode({
         email: values.email,
         password: values.password,
         registrationCode: values.registrationCode,
       });
-
-      const token = result.data.customToken;
-
+  
+      // 🔥 LOGS IMPORTANTES
+      console.log("🔥 RAW RESULT:", result);
+      console.log("🔥 RESULT DATA:", result?.data);
+      console.log("🔥 TOKEN EN result.data.customToken:", result?.data?.customToken);
+      console.log("🔥 TOKEN EN result.customToken:", result?.customToken);
+  
+      // Forzar a revisar todas las rutas posibles
+      const token =
+        result?.data?.customToken ||
+        result?.data?.token ||
+        result?.customToken ||
+        result?.token ||
+        null;
+  
+      console.log("🔥 TOKEN FINAL DETECTADO:", token);
+  
       if (token) {
         await signInWithCustomToken(auth, token);
         toast({
-          title: '¡Cuenta Creada!',
-          description: 'Tu cuenta ha sido creada con éxito. Ahora completa tus datos.',
+          title: "¡Cuenta Creada!",
+          description: "Tu cuenta ha sido creada con éxito. Ahora completa tus datos.",
         });
-        // The user provider will handle the redirect to /details
       } else {
-        throw new Error('No se recibió el token de autenticación del servidor.');
+        throw new Error("No se recibió el token de autenticación del servidor.");
       }
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error("Signup error:", error);
       toast({
-        variant: 'destructive',
-        title: 'Error en el Registro',
-        // The callable function now returns specific error messages
-        description: error.message || 'Ocurrió un error inesperado al registrar la cuenta.',
+        variant: "destructive",
+        title: "Error en el Registro",
+        description:
+          error.message || "Ocurrió un error inesperado al registrar la cuenta.",
       });
     } finally {
       setIsLoading(false);
