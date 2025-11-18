@@ -10,9 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
-interface PaymentStatus {
-  status: 'PENDING' | 'APPROVED' | 'DECLINED';
-  registrationCode?: string;
+interface PaymentReference {
+  registrationCode: string;
+  transactionId: string;
+  // Firestore might add other fields like createdAt.
 }
 
 export default function StatusPage() {
@@ -20,78 +21,104 @@ export default function StatusPage() {
   const searchParams = useSearchParams();
   const { firestore } = useFirebase();
 
-  const reference = searchParams.get('reference');
-  const [paymentData, setPaymentData] = useState<PaymentStatus | null>(null);
+  // Wompi redirects with the transaction ID in the 'id' query parameter.
+  const transactionId = searchParams.get('id');
+  const [paymentData, setPaymentData] = useState<PaymentReference | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!reference) {
+    if (!transactionId) {
+      // If there's no transactionId, there's nothing to check. Redirect home.
       router.replace('/');
       return;
     }
 
-    const findPaymentByReference = async () => {
-      setIsLoading(true);
+    const findPaymentByTransactionId = async () => {
+      if (!firestore) return;
+
       const paymentQuery = query(
-        collection(firestore, 'payment_codes'),
-        where('reference', '==', reference),
+        collection(firestore, 'payment_references'),
+        where('transactionId', '==', transactionId),
         limit(1)
       );
 
-      const querySnapshot = await getDocs(paymentQuery);
-      
-      if (!querySnapshot.empty) {
-        const docSnap = querySnapshot.docs[0];
-        setPaymentData(docSnap.data() as PaymentStatus);
+      try {
+        const querySnapshot = await getDocs(paymentQuery);
+        
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          setPaymentData(docSnap.data() as PaymentReference);
+        }
+        // If it's empty, we just keep polling.
+      } catch (err) {
+        console.error("Firestore query error:", err);
+        setError("Hubo un error al verificar tu pago. Por favor, contacta a soporte.");
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
-    findPaymentByReference();
+    // Start polling immediately
+    findPaymentByTransactionId();
 
-    // Poll for the status
+    // Poll for the status every 5 seconds
     const interval = setInterval(() => {
-        findPaymentByReference();
-    }, 5000); // Check every 5 seconds
+        // Stop polling if we already found the data
+        if (paymentData) {
+            clearInterval(interval);
+            return;
+        }
+        findPaymentByTransactionId();
+    }, 5000); 
 
-    // Stop polling after 1 minute
+    // Stop polling after 2 minutes to prevent infinite loops
     const timeout = setTimeout(() => {
         clearInterval(interval);
-    }, 60000);
+        if (!paymentData) {
+            setError("No pudimos confirmar tu pago después de 2 minutos. Si el pago fue debitado, por favor contacta a soporte con tu ID de transacción.");
+        }
+    }, 120000);
 
     return () => {
         clearInterval(interval);
         clearTimeout(timeout);
     };
 
-  }, [reference, firestore, router]);
+  }, [transactionId, firestore, router, paymentData]);
   
   useEffect(() => {
-    if (paymentData?.status === 'APPROVED' && paymentData.registrationCode) {
-      // If approved, wait a moment to show the success message, then redirect.
+    // This effect runs when `paymentData` is successfully populated.
+    if (paymentData?.registrationCode) {
+      // If found, wait a moment to show the success message, then redirect.
       const timer = setTimeout(() => {
         router.push(`/registro?code=${paymentData.registrationCode}`);
-      }, 2000); // 2-second delay
+      }, 2000); 
       return () => clearTimeout(timer);
     }
   }, [paymentData, router]);
 
-  if (!reference) {
+  if (!transactionId) {
     return null; // or a loading state while redirecting
   }
 
   const renderContent = () => {
-    if (isLoading || !paymentData) {
+    if (error) {
       return (
-        <div className="flex flex-col items-center justify-center text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-medium">Verificando estado del pago...</p>
-          <p className="text-muted-foreground">Por favor, no cierres ni actualices esta página.</p>
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-5 w-5" />
+          <AlertTitle className="font-bold">Error al verificar</AlertTitle>
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+          <Button variant="outline" className="mt-4 w-full" onClick={() => router.push('/checkout')}>
+            Volver a Intentar
+          </Button>
+        </Alert>
       );
     }
 
-    if (paymentData.status === 'APPROVED') {
+    if (paymentData && paymentData.registrationCode) {
       return (
          <Alert variant="default" className="border-green-500 bg-green-50 text-green-800">
            <CheckCircle className="h-5 w-5 text-green-600" />
@@ -103,26 +130,11 @@ export default function StatusPage() {
       );
     }
 
-    if (paymentData.status === 'DECLINED') {
-      return (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-5 w-5" />
-          <AlertTitle className="font-bold">Pago Rechazado</AlertTitle>
-          <AlertDescription>
-            Lo sentimos, tu pago no pudo ser procesado. Por favor, revisa tus datos o intenta con otro método de pago.
-          </AlertDescription>
-          <Button variant="outline" className="mt-4 w-full" onClick={() => router.push('/checkout')}>
-            Volver a Intentar
-          </Button>
-        </Alert>
-      );
-    }
-    
-    // Default to pending if status is not APPROVED or DECLINED yet
+    // Default to loading/polling state
     return (
         <div className="flex flex-col items-center justify-center text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-medium">Pago pendiente de confirmación...</p>
+          <p className="text-lg font-medium">Confirmando tu pago...</p>
           <p className="text-muted-foreground">Estamos esperando la confirmación de Wompi. Esto puede tomar un momento.</p>
         </div>
       );
@@ -134,7 +146,7 @@ export default function StatusPage() {
         <CardHeader>
           <CardTitle className="text-center">Procesando tu Acceso</CardTitle>
           <CardDescription className="text-center">
-            Estamos confirmando tu transacción con Wompi.
+            Verificando tu transacción. Por favor, no cierres esta página.
           </CardDescription>
         </CardHeader>
         <CardContent>
