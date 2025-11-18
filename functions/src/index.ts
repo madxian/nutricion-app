@@ -9,10 +9,6 @@ if (admin.apps.length === 0) {
 }
 const db = admin.firestore();
 
-/**
- * Generates a simple, semi-unique registration code.
- * Example: "AB12CD"
- */
 function generateRegistrationCode(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const digits = "0123456789";
@@ -22,8 +18,12 @@ function generateRegistrationCode(): string {
   return code.split("").sort(() => 0.5 - Math.random()).join("");
 }
 
+const WEBHOOK_VERSION = "v2-migrate-refs-2025-11-18";
+
 export const wompiWebhook = https.onRequest((req, res) => {
     (async () => {
+        logger.info(`wompiWebhook ${WEBHOOK_VERSION} - request received`, { headers: req.headers });
+
         try {
             const WOMPI_EVENT_SECRET = process.env.WOMPI_EVENT_SECRET || '';
             if (!WOMPI_EVENT_SECRET) {
@@ -66,16 +66,40 @@ export const wompiWebhook = https.onRequest((req, res) => {
             }
 
             const txId = String(tx.id);
-            logger.info("Checksum verified. Processing event for transaction ID:", txId);
+            const referenceId = tx.reference || null;
+            logger.info("Checksum verified. Processing event for transaction ID:", txId, { reference: referenceId, webhookVersion: WEBHOOK_VERSION });
 
-            // Reference to payment_references/{txId} (deterministic)
-            const paymentRefDoc = db.collection("payment_references").doc(txId);
+            // --- NEW: try to find an existing doc created with a random ID that already contains this transactionId
+            let paymentRefDocRef: FirebaseFirestore.DocumentReference;
+            let existingDocId: string | null = null;
+
+            try {
+                const existingQuery = db.collection("payment_references")
+                                        .where("transactionId", "==", txId)
+                                        .limit(1);
+                const existingSnap = await existingQuery.get();
+
+                if (!existingSnap.empty) {
+                    // Update the existing document (random ID) so we don't have duplicates
+                    paymentRefDocRef = existingSnap.docs[0].ref;
+                    existingDocId = existingSnap.docs[0].id;
+                    logger.info("Found existing payment_references doc (random ID). Will update it.", { existingDocId });
+                } else {
+                    // No existing doc: create deterministic doc using txId as ID
+                    paymentRefDocRef = db.collection("payment_references").doc(txId);
+                    logger.info("No existing doc found. Will create/update deterministic payment_references doc with txId as ID.", { targetDocId: txId });
+                }
+            } catch (qErr) {
+                // If the query fails for any reason, fallback to deterministic doc
+                logger.error("Error while searching for existing payment_references by transactionId; falling back to deterministic doc", { err: qErr });
+                paymentRefDocRef = db.collection("payment_references").doc(txId);
+            }
 
             // Base payload for payment_references (always include status)
             const basePayload: any = {
                 transactionId: txId,
                 status: String(tx.status || 'UNKNOWN').toUpperCase(),
-                reference: tx.reference || null,
+                reference: referenceId,
                 amount_in_cents: Number(tx.amount_in_cents ?? tx.amount ?? 0),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 rawEvent: event
@@ -84,36 +108,36 @@ export const wompiWebhook = https.onRequest((req, res) => {
             if (String(tx.status).toUpperCase() === 'APPROVED') {
                 const registrationCode = generateRegistrationCode();
 
-                // Save code doc
-                const codeDocRef = db.collection("payment_codes").doc(registrationCode);
+                // Save code doc (unchanged)
+                const codeDocRef = db.collection("payment_codes").doc(String(registrationCode));
                 await codeDocRef.set({
                     status: 'APPROVED',
                     registrationCode,
                     transactionId: txId,
-                    reference: tx.reference || null,
+                    reference: referenceId,
                     used: false,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     rawEvent: event
                 });
 
-                // Always set payment_references/{txId} with merge
-                await paymentRefDoc.set({
+                // Ensure payment_references doc includes registrationCode and APPROVED status
+                await paymentRefDocRef.set({
                     ...basePayload,
                     registrationCode,
                     status: 'APPROVED'
                 }, { merge: true });
 
-                logger.info(`Payment ${txId} approved. Generated code: ${registrationCode}`);
+                logger.info(`Payment ${txId} approved. Generated code: ${registrationCode}`, { targetDocId: paymentRefDocRef.id, existingDocId });
             } else {
-                // For any other status (DECLINED, PENDING, UNKNOWN)
-                await paymentRefDoc.set({
+                // For any other status (DECLINED, PENDING, UNKNOWN) update/create the payment_references doc
+                await paymentRefDocRef.set({
                     ...basePayload
                 }, { merge: true });
 
-                logger.info(`Payment ${txId} has status: ${String(tx.status || 'UNKNOWN')}`);
+                logger.info(`Payment ${txId} has status: ${String(tx.status || 'UNKNOWN')}`, { targetDocId: paymentRefDocRef.id, existingDocId });
             }
 
-            res.status(200).json({ received: true });
+            res.status(200).json({ received: true, docId: paymentRefDocRef.id });
 
         } catch (err) {
             logger.error('Unexpected error in wompiWebhook:', err);
