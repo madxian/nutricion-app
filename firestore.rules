@@ -82,8 +82,13 @@ service cloud.firestore {
     // PAYMENT REFERENCES INDEX - (created by webhook)
     // ============================
     match /payment_references/{referenceId} {
-        // This collection is for backend-use only and should not be client-accessible.
-        allow read, write: if false;
+        // Allow a client to query for a specific transaction ID.
+        // This is secure because the user only knows their own transaction ID
+        // from the Wompi redirect URL. This prevents listing all references.
+        allow list: if request.query.keys().hasOnly(['transactionId']);
+        
+        // Disallow direct reads (get), creations, updates, or deletions from the client.
+        allow get, write: if false;
     }
   }
 }
