@@ -1,4 +1,4 @@
-
+// index.ts
 import { https, logger } from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
@@ -49,6 +49,7 @@ export const wompiWebhook = https.onRequest((req, res) => {
                 return;
             }
 
+            // --- checksum logic kept exactly as before per request ---
             const concatenatedProperties = `${tx.id}${tx.status}${tx.amount_in_cents}`;
             const stringToSign = `${concatenatedProperties}${eventTimestamp}${WOMPI_EVENT_SECRET}`;
 
@@ -65,11 +66,22 @@ export const wompiWebhook = https.onRequest((req, res) => {
                 res.status(403).json({ error: "Invalid checksum." });
                 return;
             }
-            
+
             logger.info("Checksum verified. Processing event for transaction ID:", tx.id);
 
-            // Use transaction ID as the document ID for payment_references
-            const paymentRefDoc = db.collection("payment_references").doc(String(tx.id));
+            // Use transaction ID as the document ID for payment_references (NO random id)
+            const txId = String(tx.id);
+            const paymentRefDoc = db.collection("payment_references").doc(txId);
+
+            // Base payload for payment_references (always include status)
+            const basePayload: any = {
+              transactionId: txId,
+              status: String(tx.status || 'UNKNOWN').toUpperCase(),
+              reference: tx.reference || null,
+              amount_in_cents: Number(tx.amount_in_cents ?? tx.amount ?? 0),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              rawEvent: event
+            };
 
             if (String(tx.status).toUpperCase() === 'APPROVED') {
                 const registrationCode = generateRegistrationCode();
@@ -80,28 +92,28 @@ export const wompiWebhook = https.onRequest((req, res) => {
                     status: 'APPROVED',
                     registrationCode,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    transactionId: tx.id,
+                    transactionId: txId,
                     reference: tx.reference || null,
                     used: false,
+                    rawEvent: event
                 });
 
                 // Create or update the index document in payment_references using tx.id as doc ID
                 await paymentRefDoc.set({
-                    registrationCode,
-                    reference: tx.reference || null,
-                    status: 'APPROVED',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
+                  ...basePayload,
+                  registrationCode,
+                  status: 'APPROVED',
+                }, { merge: true });
 
-                logger.info(`Payment ${tx.id} approved. Generated code: ${registrationCode}`);
+                logger.info(`Payment ${txId} approved. Generated code: ${registrationCode}`);
             } else {
                 // If not approved, create/update the document in payment_references with the status
                 await paymentRefDoc.set({
-                    status: tx.status || 'UNKNOWN',
-                    reference: tx.reference || null,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  ...basePayload,
+                  // ensure status field exists even for declined/other statuses
+                  status: String(tx.status || 'UNKNOWN').toUpperCase(),
                 }, { merge: true });
-                logger.info(`Payment ${tx.id} has status: ${tx.status}`);
+                logger.info(`Payment ${txId} has status: ${String(tx.status || 'UNKNOWN')}`);
             }
 
             res.status(200).json({ received: true });
