@@ -134,7 +134,7 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
         registrationCode: values.registrationCode,
       });
 
-      const token = result.data.customToken;
+      const token = result.data.Token;
 
       if (token) {
         await signInWithCustomToken(auth, token);
