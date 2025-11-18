@@ -62,6 +62,7 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     password: z.string().min(6, t('auth.password_min_length')),
     confirmPassword: z.string(),
     registrationCode: z.string().min(1, t('auth.registration_code_required')),
+    referralCode: z.string().optional(),
     acceptTerms: z.boolean().refine(val => val === true, { message: t('auth.accept_terms_error') }),
     acceptPrivacy: z.boolean().refine(val => val === true, { message: t('auth.accept_privacy_error') }),
     isAdult: z.boolean().refine(val => val === true, { message: t('auth.is_adult_error') }),
@@ -89,6 +90,7 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
       password: '', 
       confirmPassword: '',
       registrationCode: registrationCode || '',
+      referralCode: '',
       acceptTerms: false,
       acceptPrivacy: false,
       isAdult: false,
@@ -132,23 +134,15 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
         email: values.email,
         password: values.password,
         registrationCode: values.registrationCode,
+        referralCode: values.referralCode,
       });
   
-      // 🔥 LOGS IMPORTANTES
-      console.log("🔥 RAW RESULT:", result);
-      console.log("🔥 RESULT DATA:", result?.data);
-      console.log("🔥 TOKEN EN result.data.customToken:", result?.data?.customToken);
-      console.log("🔥 TOKEN EN result.customToken:", result?.customToken);
-  
-      // Forzar a revisar todas las rutas posibles
       const token =
         result?.data?.customToken ||
         result?.data?.token ||
         result?.customToken ||
         result?.token ||
         null;
-  
-      console.log("🔥 TOKEN FINAL DETECTADO:", token);
   
       if (token) {
         await signInWithCustomToken(auth, token);
@@ -286,6 +280,19 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
                       <FormLabel>{t('auth.registration_code_label')}</FormLabel>
                       <FormControl>
                         <Input placeholder={t('auth.registration_code_placeholder')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={signupForm.control}
+                  name="referralCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código de Referido (Opcional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="¿Alguien te recomendó?" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -492,3 +499,5 @@ export default function AuthForm({ defaultTab = 'login' }: AuthFormProps) {
     </Card>
   );
 }
+
+    

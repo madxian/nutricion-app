@@ -90,5 +90,20 @@ service cloud.firestore {
         // Disallow direct reads (get), creations, updates, or deletions from the client.
         allow get, write: if false;
     }
+    
+    // ============================
+    // REFERRED CODES
+    // ============================
+    match /referred_codes/{referralCode} {
+        // Nobody can read/write the main referral code doc from the client
+        allow read, write: if false;
+    }
+    
+    match /referred_codes/{referralCode}/referred_users/{userId} {
+        // Nobody can read/write the subcollection from the client
+        allow read, write: if false;
+    }
   }
 }
+
+    
