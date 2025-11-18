@@ -92,6 +92,7 @@ export const wompiWebhook = https.onRequest((req, res) => {
                     await db.collection("payment_references").doc(String(tx.reference)).set({
                         registrationCode,
                         transactionId: tx.id || null,
+                        status: 'APPROVED', // Always include the status
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
                 }
@@ -228,5 +229,3 @@ export const registerWithCode = https.onCall(async (data, context) => {
     throw new https.HttpsError('internal', 'No se pudo generar el token de autenticación.');
   }
 });
-
-    
