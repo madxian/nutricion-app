@@ -81,14 +81,14 @@ service cloud.firestore {
     // ============================
     // PAYMENT REFERENCES INDEX - (created by webhook)
     // ============================
-    match /payment_references/{referenceId} {
-        // Allow a client to query for a specific transaction ID.
-        // This is secure because the user only knows their own transaction ID
+    match /payment_references/{transactionId} {
+        // Allow a client to read a specific document by its ID (the transaction ID).
+        // This is secure because a user only knows their own transaction ID
         // from the Wompi redirect URL. This prevents listing all references.
-        allow list: if request.query.keys().hasOnly(['transactionId']);
+        allow get: if true;
         
-        // Disallow direct reads (get), creations, updates, or deletions from the client.
-        allow get, write: if false;
+        // Disallow listing, creating, updating, or deleting from the client.
+        allow list, write: if false;
     }
     
     // ============================

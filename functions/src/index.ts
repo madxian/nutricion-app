@@ -38,11 +38,12 @@ export const wompiWebhook = https.onRequest((req, res) => {
             const eventTimestamp = event.timestamp;
             const tx = event.data?.transaction;
 
-            if (!receivedChecksum || !eventTimestamp || !tx) {
-                logger.warn("Request is missing signature, timestamp, or transaction data.", {
+            if (!receivedChecksum || !eventTimestamp || !tx || !tx.id) {
+                logger.warn("Request is missing signature, timestamp, transaction data, or transaction ID.", {
                     hasChecksum: !!receivedChecksum,
                     hasTimestamp: !!eventTimestamp,
                     hasTransaction: !!tx,
+                    hasTxId: !!tx?.id,
                 });
                 res.status(400).json({ error: "Missing signature, timestamp, or transaction info" });
                 return;
@@ -65,49 +66,42 @@ export const wompiWebhook = https.onRequest((req, res) => {
                 return;
             }
             
-            logger.info("Checksum verified. Processing event for reference:", tx.reference);
+            logger.info("Checksum verified. Processing event for transaction ID:", tx.id);
 
-            if (!tx.reference) {
-                logger.error("Transaction is missing a reference.", tx);
-                res.status(400).json({ error: "Transaction reference is missing." });
-                return;
-            }
+            // Use transaction ID as the document ID for payment_references
+            const paymentRefDoc = db.collection("payment_references").doc(String(tx.id));
 
             if (String(tx.status).toUpperCase() === 'APPROVED') {
                 const registrationCode = generateRegistrationCode();
 
-                // Guardamos el doc bajo payment_codes/{registrationCode}
+                // Save the code doc under payment_codes/{registrationCode}
                 const codeDocRef = db.collection("payment_codes").doc(String(registrationCode));
                 await codeDocRef.set({
                     status: 'APPROVED',
                     registrationCode,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    transactionId: tx.id || null,
-                    reference: tx.reference || null, // guardar la reference por si la necesitas
+                    transactionId: tx.id,
+                    reference: tx.reference || null,
                     used: false,
                 });
 
-                // Opcional: guardar un índice para buscar por reference rápidamente
-                if (tx.reference) {
-                    await db.collection("payment_references").doc(String(tx.reference)).set({
-                        registrationCode,
-                        transactionId: tx.id || null,
-                        status: 'APPROVED', // Always include the status
-                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    });
-                }
-
-                logger.info(`Payment ${tx.reference} approved. Generated code: ${registrationCode}`);
-            } else {
-                // Si no fue aprobado, preferimos crear un doc por reference (no por code)
-                // para que puedas ver el estado de la transacción
-                const refDoc = db.collection("payment_references").doc(String(tx.reference));
-                await refDoc.set({
-                    status: tx.status || 'UNKNOWN',
+                // Create or update the index document in payment_references using tx.id as doc ID
+                await paymentRefDoc.set({
+                    registrationCode,
+                    reference: tx.reference || null,
+                    status: 'APPROVED',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    transactionId: tx.id || null,
+                });
+
+                logger.info(`Payment ${tx.id} approved. Generated code: ${registrationCode}`);
+            } else {
+                // If not approved, create/update the document in payment_references with the status
+                await paymentRefDoc.set({
+                    status: tx.status || 'UNKNOWN',
+                    reference: tx.reference || null,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 }, { merge: true });
-                logger.info(`Payment ${tx.reference} has status: ${tx.status}`);
+                logger.info(`Payment ${tx.id} has status: ${tx.status}`);
             }
 
             res.status(200).json({ received: true });

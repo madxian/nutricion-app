@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFirebase } from '@/firebase/provider';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Loader2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,17 +38,13 @@ export default function StatusPage() {
     }
 
     const findPaymentByTransactionId = async () => {
-      const paymentQuery = query(
-        collection(firestore, 'payment_references'),
-        where('transactionId', '==', transactionId),
-        limit(1)
-      );
+      // Directly get the document using the transactionId as the document ID
+      const paymentDocRef = doc(firestore, 'payment_references', transactionId);
 
       try {
-        const querySnapshot = await getDocs(paymentQuery);
+        const docSnap = await getDoc(paymentDocRef);
         
-        if (!querySnapshot.empty) {
-          const docSnap = querySnapshot.docs[0];
+        if (docSnap.exists()) {
           const paymentData = docSnap.data() as PaymentReference;
 
           if (paymentData.status === 'APPROVED' && paymentData.registrationCode) {
@@ -63,7 +59,7 @@ export default function StatusPage() {
           // If status is PENDING or still no document, we keep polling.
         }
       } catch (err) {
-        console.error("Firestore query error:", err);
+        console.error("Firestore getDoc error:", err);
         setStatus('error');
         setErrorMessage("Hubo un error al verificar tu pago. Por favor, contacta a soporte.");
         setShouldPoll(false);
