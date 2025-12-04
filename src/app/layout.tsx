@@ -4,6 +4,7 @@ import { UserProvider } from '@/context/user-context';
 import { LanguageProvider } from '@/context/language-context';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import SupportButton from '@/components/support-button';
 
 export const metadata: Metadata = {
   title: '¿Qué hay pa\' hoy?',
@@ -27,6 +28,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <LanguageProvider>
             <UserProvider>
+              <SupportButton />
               {children}
             </UserProvider>
           </LanguageProvider>
