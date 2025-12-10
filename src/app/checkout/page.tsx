@@ -27,7 +27,7 @@ export default function CheckoutPage() {
     const reference = generatePaymentReference();
 
     // 2. Construct the Wompi URL with the reference and redirect URL.
-    const wompiBaseUrl = 'https://checkout.wompi.co/l/kJZFWG';
+    const wompiBaseUrl = 'https://checkout.wompi.co/l/AzfEIS';
     
     // We get the base URL of our app to construct the redirect URL dynamically.
     const redirectUrl = `${window.location.origin}/status`;
